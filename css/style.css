@@ -524,6 +524,31 @@ fieldset legend {
   cursor: not-allowed;
 }
 
+.btn-delete {
+  width: 28px;
+  height: 28px;
+  border: 1px solid var(--ruxlog-danger);
+  border-radius: var(--radius);
+  background: #fee2e2;
+  color: var(--ruxlog-danger);
+  cursor: pointer;
+  font-size: 0.9rem;
+  line-height: 1;
+  font-family: inherit;
+}
+
+.btn-delete:hover {
+  background: var(--ruxlog-danger);
+  color: #fff;
+}
+
+.actions-cell {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
 /* Document row layout + a clearly visible call-to-action button */
 .doc-actions {
   display: flex;
