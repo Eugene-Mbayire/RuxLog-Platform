@@ -21,7 +21,7 @@ function renderNav(profile) {
     { href: "petty-cash.html", label: "Petty Cash" },
     { href: "working-hours.html", label: profile.role === "manager" ? "Worked Hours" : "Check IN" },
     { href: "cars.html", label: "Vehicles" },
-    { href: "first-aid.html", label: "First-Aid_Kit" },
+    { href: "first-aid.html", label: "First-Aid-Kit" },
   ];
 
   if (profile.role === "manager") {
