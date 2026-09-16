@@ -127,8 +127,6 @@ async function renderManagerDashboard() {
   const container = document.getElementById("cards-container");
 
   const [
-    { count: driverCount },
-    { count: vehicleCount },
     { data: balances },
     { data: allSessions },
     { data: docs },
@@ -137,8 +135,6 @@ async function renderManagerDashboard() {
     { data: weeklyRecords },
     { data: drivers },
   ] = await Promise.all([
-    supabaseClient.from("profiles").select("*", { count: "exact", head: true }).eq("role", "driver"),
-    supabaseClient.from("vehicles").select("*", { count: "exact", head: true }),
     supabaseClient.from("petty_cash_balance").select("*"),
     supabaseClient
       .from("work_sessions")
@@ -259,10 +255,8 @@ async function renderManagerDashboard() {
     : `<p class="empty-note">No drivers yet.</p>`;
 
   container.innerHTML = [
-    card("Drivers", `<p class="big-value">${driverCount || 0}</p>`),
-    card("Vehicles", `<p class="big-value">${vehicleCount || 0}</p>`),
     card("Petty Cash Balance", balancesHtml),
-    card("Today's Status", todayStatusHtml),
+    card("Drivers On Duty", todayStatusHtml),
     card("This Week Drivers Worked Hours", weeklyHtml),
     card("Total Hours Owed / Extra", totalHoursHtml),
     card("Vehicle Documents Expiring Soon", expiringDocsHtml),
