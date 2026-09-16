@@ -26,6 +26,7 @@ function renderNav(profile) {
   ];
 
   if (profile.role === "manager") {
+    links.push({ href: "analytics.html", label: "Analytics" });
     links.push({ href: "users.html", label: "Users" });
   }
 

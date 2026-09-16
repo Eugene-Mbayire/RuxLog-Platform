@@ -133,6 +133,8 @@ fieldset legend {
   font-weight: 600;
   cursor: pointer;
   font-family: inherit;
+  text-decoration: none;
+  text-align: center;
 }
 
 .btn:hover {
@@ -456,6 +458,15 @@ fieldset legend {
   background: var(--ruxlog-text);
 }
 
+.btn-whatsapp {
+  background: #25d366;
+  margin-top: 8px;
+}
+
+.btn-whatsapp:hover {
+  background: #1da851;
+}
+
 .card-section {
   margin-bottom: 24px;
 }
@@ -703,6 +714,20 @@ fieldset legend {
 .schedule-completed-text {
   text-decoration: line-through;
   color: var(--ruxlog-text-muted);
+}
+
+/* ---------- Analytics charts ---------- */
+.chart-card {
+  background: var(--ruxlog-surface);
+  border: 1px solid var(--ruxlog-border);
+  border-radius: var(--radius);
+  padding: 20px;
+  margin-bottom: 12px;
+  max-width: 760px;
+}
+
+.chart-card canvas {
+  max-height: 320px;
 }
 
 /* ==========================================================

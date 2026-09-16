@@ -13,8 +13,11 @@
 // reasonable vanilla-JS way to rasterize styled DOM into an image.
 // ==========================================================
 
+const WORK_GROUP_LINK = "https://chat.whatsapp.com/F7e8LBZxLxwIglmLdZYoym";
+
 let currentDate = toDateString(new Date());
 let editingEntryId = null;
+let currentEntries = [];
 
 document.addEventListener("DOMContentLoaded", async () => {
   const profile = await requireAuth();
@@ -74,6 +77,8 @@ function scaffoldHtml() {
           <p class="schedule-watermark">RuxLog</p>
         </div>
         <button type="button" id="download-btn" class="btn btn-auto">Download as Image</button>
+        <button type="button" id="share-whatsapp-btn" class="btn btn-auto btn-whatsapp">Share Schedule</button>
+        <a href="${WORK_GROUP_LINK}" target="_blank" rel="noopener" class="btn btn-auto btn-off" id="open-group-link">Open Work Group</a>
       </div>
     </div>
   `;
@@ -98,6 +103,7 @@ function wireControls() {
   document.getElementById("entry-form").addEventListener("submit", handleSubmitEntry);
   document.getElementById("cancel-edit-btn").addEventListener("click", resetEntryForm);
   document.getElementById("download-btn").addEventListener("click", handleDownload);
+  document.getElementById("share-whatsapp-btn").addEventListener("click", handleShareWhatsApp);
 }
 
 function changeDate(deltaDays) {
@@ -118,8 +124,9 @@ async function loadSchedule() {
 
   if (error) throw error;
 
-  renderEntryList(data || []);
-  renderPreview(data || []);
+  currentEntries = data || [];
+  renderEntryList(currentEntries);
+  renderPreview(currentEntries);
 }
 
 // ---------- Entry list (editable by anyone) ----------
@@ -283,4 +290,65 @@ async function handleDownload() {
     btn.disabled = false;
     btn.textContent = "Download as Image";
   }
+}
+
+// There is no way for a website to post directly into an existing
+// WhatsApp group — that invite link only lets someone join it, and
+// WhatsApp has no public API for a static site to send a message into
+// a specific group on someone's behalf. This does the best honest
+// equivalent: hands the schedule to the device's native share sheet
+// (as an image where supported, otherwise as formatted text), and the
+// user picks the group themselves — WhatsApp always requires that one
+// tap, for anyone's messages, not just ours.
+async function handleShareWhatsApp() {
+  const btn = document.getElementById("share-whatsapp-btn");
+  btn.disabled = true;
+
+  try {
+    const text = buildWhatsAppText();
+
+    if (navigator.share) {
+      try {
+        const target = document.getElementById("schedule-preview");
+        const canvas = await html2canvas(target, { backgroundColor: null, scale: 2 });
+        const blob = await new Promise((resolve) => canvas.toBlob(resolve, "image/png"));
+        const file = new File([blob], `schedule-${currentDate}.png`, { type: "image/png" });
+
+        if (navigator.canShare && navigator.canShare({ files: [file] })) {
+          await navigator.share({ files: [file], text });
+        } else {
+          await navigator.share({ text });
+        }
+        return;
+      } catch (err) {
+        if (err.name === "AbortError") return; // user cancelled the share sheet
+        console.warn("Native share failed, falling back to WhatsApp web link:", err);
+      }
+    }
+
+    // Fallback for browsers without the native share sheet (mainly
+    // desktop): opens WhatsApp with the text pre-filled.
+    window.open(`https://wa.me/?text=${encodeURIComponent(text)}`, "_blank", "noopener");
+  } finally {
+    btn.disabled = false;
+  }
+}
+
+function buildWhatsAppText() {
+  const dateObj = new Date(currentDate + "T00:00:00");
+  const weekday = dateObj.toLocaleDateString(undefined, { weekday: "long" }).toUpperCase();
+  const dateLabel = formatDate(currentDate + "T00:00:00");
+
+  let text = `*${weekday} SCHEDULE* (${dateLabel})\n\n`;
+
+  if (currentEntries.length === 0) {
+    text += "No entries yet.";
+  } else {
+    currentEntries.forEach((e) => {
+      const check = e.completed ? "✅ " : "";
+      text += `${check}*${formatEntryTime(e.entry_time)}:* ${e.description}\n`;
+    });
+  }
+
+  return text;
 }
