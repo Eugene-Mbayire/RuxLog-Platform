@@ -242,11 +242,12 @@ fieldset legend {
 }
 
 .profile-photo {
-  width: 56px;
-  height: 56px;
+  width: 96px;
+  height: 96px;
   border-radius: 50%;
   object-fit: cover;
-  border: 2px solid var(--ruxlog-primary);
+  border: 3px solid var(--ruxlog-primary);
+  flex-shrink: 0;
 }
 
 .text-muted {
@@ -753,17 +754,17 @@ fieldset legend {
 }
 
 .profile-card-photo {
-  width: 56px;
-  height: 56px;
+  width: 84px;
+  height: 84px;
   border-radius: 50%;
   object-fit: cover;
-  border: 2px solid var(--ruxlog-primary);
+  border: 3px solid var(--ruxlog-primary);
   flex-shrink: 0;
 }
 
 .profile-card-photo-placeholder {
-  width: 56px;
-  height: 56px;
+  width: 84px;
+  height: 84px;
   border-radius: 50%;
   background: var(--ruxlog-border);
   color: var(--ruxlog-text-muted);
@@ -771,7 +772,7 @@ fieldset legend {
   align-items: center;
   justify-content: center;
   font-weight: 700;
-  font-size: 1.2rem;
+  font-size: 1.8rem;
   flex-shrink: 0;
 }
 

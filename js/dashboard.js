@@ -18,7 +18,7 @@ document.addEventListener("DOMContentLoaded", async () => {
   renderNav(profile);
 
   document.getElementById("welcome-text").textContent =
-    `Welcome, ${profile.full_name} (${profile.role})`;
+    `Welcome, ${profile.full_name}!`;
   document.getElementById("today-date").textContent = new Date().toLocaleDateString(undefined, {
     weekday: "long",
     year: "numeric",
