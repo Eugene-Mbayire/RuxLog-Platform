@@ -366,6 +366,26 @@ body {
   width: auto;
 }
 
+/* Sign In / Sign Out — the one primary action on the Working Hours page */
+.btn-large {
+  font-size: 1.1rem;
+  padding: 16px 24px;
+  margin-top: 4px;
+}
+
+.btn-large:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.btn-signout {
+  background: #b45309;
+}
+
+.btn-signout:hover {
+  background: #92400e;
+}
+
 .card-section {
   margin-bottom: 24px;
 }

@@ -14,9 +14,7 @@
 // only lets managers insert refills.
 // ==========================================================
 
-function formatRWF(amount) {
-  return new Intl.NumberFormat("en-RW", { maximumFractionDigits: 0 }).format(amount || 0) + " RWF";
-}
+// formatRWF() lives in js/utils.js, shared with the dashboard.
 
 document.addEventListener("DOMContentLoaded", async () => {
   const profile = await requireAuth();
