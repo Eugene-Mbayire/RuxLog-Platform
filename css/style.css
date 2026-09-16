@@ -142,6 +142,25 @@ body {
   font-size: 1.1rem;
 }
 
+.topbar-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: auto;
+}
+
+/* Hidden on desktop — the nav links are always shown there (see below) */
+.nav-toggle {
+  display: none;
+  background: none;
+  border: 1px solid rgba(255, 255, 255, 0.4);
+  border-radius: var(--radius);
+  color: #fff;
+  font-size: 1.2rem;
+  padding: 4px 10px;
+  cursor: pointer;
+}
+
 .nav-links {
   display: flex;
   flex-wrap: wrap;
@@ -433,16 +452,36 @@ body {
     padding: 12px 16px;
   }
 
-  .nav-links {
+  .topbar-row {
+    width: 100%;
+  }
+
+  /* Nav links collapse behind the ☰ toggle instead of always taking
+     up several rows of vertical space above the actual page content */
+  .nav-toggle {
+    display: inline-flex;
+    align-items: center;
     justify-content: center;
   }
 
+  .nav-links {
+    display: none;
+    flex-direction: column;
+    width: 100%;
+    margin-top: 8px;
+  }
+
+  .nav-links.nav-links-open {
+    display: flex;
+  }
+
   .nav-link {
-    padding: 10px 12px;
+    padding: 12px;
   }
 
   .topbar .btn-secondary {
     width: 100%;
+    margin-top: 8px;
   }
 
   .dashboard-header {
@@ -455,6 +494,63 @@ body {
 
   .card {
     padding: 16px;
+  }
+
+  /* Tables become stacked label/value cards instead of forcing
+     horizontal scrolling to read every row on a phone-width screen */
+  .table-responsive {
+    overflow-x: visible;
+  }
+
+  .data-table {
+    min-width: 0;
+    border: none;
+    background: transparent;
+  }
+
+  .data-table thead {
+    display: none;
+  }
+
+  .data-table tr {
+    display: block;
+    background: var(--ruxlog-surface);
+    border: 1px solid var(--ruxlog-border);
+    border-radius: var(--radius);
+    margin-bottom: 12px;
+    padding: 4px 14px;
+  }
+
+  .data-table td {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 12px;
+    white-space: normal;
+    text-align: right;
+  }
+
+  .data-table td::before {
+    content: attr(data-label);
+    font-weight: 700;
+    color: var(--ruxlog-text-muted);
+    text-align: left;
+  }
+
+  /* Error/empty-state message rows (a single <td colspan="...">) stay
+     as plain centered text, not a label/value pair */
+  .data-table td[colspan] {
+    display: block;
+    text-align: center;
+  }
+
+  .data-table td[colspan]::before {
+    content: none;
+  }
+
+  .pagination {
+    flex-wrap: wrap;
+    justify-content: center;
   }
 
   .card .big-value {

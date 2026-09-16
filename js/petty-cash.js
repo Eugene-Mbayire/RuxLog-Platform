@@ -264,10 +264,10 @@ async function loadHistory(vehicleId) {
       .map((row) => {
         const dateTime = new Date(row.created_at).toLocaleString();
         return `<tr>
-          <td>${dateTime}</td>
-          <td>${row.profiles ? row.profiles.full_name : "Unknown"}</td>
-          <td>${formatRWF(row.amount)}</td>
-          <td>${row.reason || "—"}</td>
+          <td data-label="Date/Time">${dateTime}</td>
+          <td data-label="Name">${row.profiles ? row.profiles.full_name : "Unknown"}</td>
+          <td data-label="Amount">${formatRWF(row.amount)}</td>
+          <td data-label="Reason">${row.reason || "—"}</td>
         </tr>`;
       })
       .join("");

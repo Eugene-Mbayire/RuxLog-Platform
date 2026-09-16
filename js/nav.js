@@ -39,11 +39,23 @@ function renderNav(profile) {
 
   navPlaceholder.innerHTML = `
     <div class="topbar">
-      <span class="brand">RuxLog</span>
-      <nav class="nav-links">${linksHtml}</nav>
+      <div class="topbar-row">
+        <span class="brand">RuxLog</span>
+        <button type="button" id="nav-toggle" class="nav-toggle" aria-label="Toggle navigation" aria-expanded="false">☰</button>
+      </div>
+      <nav class="nav-links" id="nav-links">${linksHtml}</nav>
       <button id="logout-btn" class="btn btn-secondary">Logout</button>
     </div>
   `;
 
   document.getElementById("logout-btn").addEventListener("click", logout);
+
+  // Hamburger toggle — only visible/used on phone-width screens (see CSS).
+  // On desktop the nav links are always shown, so this button stays hidden.
+  const toggleBtn = document.getElementById("nav-toggle");
+  const navLinks = document.getElementById("nav-links");
+  toggleBtn.addEventListener("click", () => {
+    const isOpen = navLinks.classList.toggle("nav-links-open");
+    toggleBtn.setAttribute("aria-expanded", String(isOpen));
+  });
 }

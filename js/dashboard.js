@@ -297,6 +297,6 @@ async function renderManagerDashboard() {
     card("This Week's Hours", weeklyHtml),
     card("Vehicle Documents Expiring Soon", expiringDocsHtml),
     card("Medicines Expiring Soon", expiringMedsHtml),
-    card("Recent Withdrawals", withdrawalsHtml),
+    card("Recent Petty Cash Withdrawals", withdrawalsHtml),
   ].join("");
 }
