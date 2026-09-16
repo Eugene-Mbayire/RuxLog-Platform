@@ -40,7 +40,7 @@ function renderNav(profile) {
   navPlaceholder.innerHTML = `
     <div class="topbar">
       <div class="topbar-row">
-        <span class="brand">RuxLog</span>
+        <img src="assets/logo.png" alt="RuxLog" class="nav-logo" />
         <button type="button" id="nav-toggle" class="nav-toggle" aria-label="Toggle navigation" aria-expanded="false">☰</button>
       </div>
       <nav class="nav-links" id="nav-links">${linksHtml}</nav>

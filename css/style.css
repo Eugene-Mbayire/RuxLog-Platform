@@ -57,16 +57,19 @@ body {
   max-width: 360px;
 }
 
-.login-card h1 {
-  margin: 0 0 4px;
-  font-size: 1.5rem;
-  color: var(--ruxlog-primary);
+.login-logo {
+  display: block;
+  width: 160px;
+  height: auto;
+  margin: 0 auto 8px;
 }
 
 .login-card p.subtitle {
   margin: 0 0 24px;
-  color: var(--ruxlog-text-muted);
-  font-size: 0.9rem;
+  color: var(--ruxlog-primary);
+  font-size: 1.15rem;
+  font-weight: 700;
+  text-align: center;
 }
 
 /* ---------- Form controls (reused everywhere) ---------- */
@@ -81,7 +84,8 @@ body {
   font-weight: 600;
 }
 
-.field input {
+.field input,
+.field textarea {
   width: 100%;
   padding: 10px 12px;
   border: 1px solid var(--ruxlog-border);
@@ -90,9 +94,30 @@ body {
   font-family: inherit;
 }
 
-.field input:focus {
+.field textarea {
+  resize: vertical;
+}
+
+.field input:focus,
+.field textarea:focus {
   outline: none;
   border-color: var(--ruxlog-accent);
+}
+
+fieldset {
+  border: 1px solid var(--ruxlog-border);
+  border-radius: var(--radius);
+  padding: 12px;
+  margin: 0 0 16px;
+}
+
+fieldset legend {
+  padding: 0 6px;
+  font-weight: 700;
+  color: var(--ruxlog-text-muted);
+  font-size: 0.8rem;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
 }
 
 /* ---------- Buttons (reused everywhere) ---------- */
@@ -144,9 +169,10 @@ body {
   gap: 12px;
 }
 
-.topbar .brand {
-  font-weight: 700;
-  font-size: 1.1rem;
+.nav-logo {
+  height: 52px;
+  width: auto;
+  display: block;
 }
 
 .topbar-row {
@@ -369,6 +395,34 @@ body {
   margin-top: 16px;
 }
 
+/* ---------- Vehicle profile panels ---------- */
+.vehicle-card {
+  max-width: none;
+}
+
+.vehicle-card summary {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.vehicle-thumb {
+  width: 64px;
+  height: 48px;
+  object-fit: cover;
+  border-radius: var(--radius);
+  flex-shrink: 0;
+}
+
+.vehicle-photo {
+  display: block;
+  width: 100%;
+  max-width: 360px;
+  height: auto;
+  border-radius: var(--radius);
+  margin-top: 16px;
+}
+
 .btn-auto {
   width: auto;
 }
@@ -468,6 +522,30 @@ body {
 .btn-page:disabled {
   opacity: 0.5;
   cursor: not-allowed;
+}
+
+/* Document row layout + a clearly visible call-to-action button */
+.doc-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.btn-view-doc {
+  display: inline-block;
+  padding: 6px 14px;
+  border-radius: var(--radius);
+  background: var(--ruxlog-primary);
+  color: #fff;
+  text-decoration: none;
+  font-weight: 700;
+  font-size: 0.8rem;
+  letter-spacing: 0.02em;
+  white-space: nowrap;
+}
+
+.btn-view-doc:hover {
+  background: var(--ruxlog-primary-dark);
 }
 
 /* ==========================================================
