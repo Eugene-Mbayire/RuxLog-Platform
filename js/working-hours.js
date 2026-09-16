@@ -15,7 +15,7 @@ document.addEventListener("DOMContentLoaded", async () => {
 
   renderNav(profile);
 
-  const pageTitle = profile.role === "manager" ? "Worked Hours" : "Check IN";
+  const pageTitle = profile.role === "manager" ? "Worked Hours" : "Check IN/OUT";
   document.getElementById("page-heading").textContent = pageTitle;
   document.title = `RuxLog - ${pageTitle}`;
 

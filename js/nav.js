@@ -19,7 +19,7 @@ function renderNav(profile) {
   const links = [
     { href: "dashboard.html", label: "Dashboard" },
     { href: "petty-cash.html", label: "Petty Cash" },
-    { href: "working-hours.html", label: profile.role === "manager" ? "Worked Hours" : "Check IN" },
+    { href: "working-hours.html", label: profile.role === "manager" ? "Worked Hours" : "Check IN/OUT" },
     { href: "cars.html", label: "Vehicles" },
     { href: "first-aid.html", label: "First-Aid-Kit" },
     { href: "schedule.html", label: "Schedule" },
