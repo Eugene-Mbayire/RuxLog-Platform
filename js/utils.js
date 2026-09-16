@@ -67,7 +67,7 @@ function expiryBadge(dateStr) {
 function totalHoursStatusBadge(totalDiffHours, isDriver) {
   if (Math.abs(totalDiffHours) < 0.01) return `<span class="status-pill status-ok">All caught up</span>`;
   if (totalDiffHours < 0) {
-    const owedLabel = isDriver ? "You owe" : "Driver Owes You";
+    const owedLabel = isDriver ? "You owe" : "Owes You";
     return `<span class="status-pill status-warning">${owedLabel} ${Math.abs(totalDiffHours).toFixed(1)} hours</span>`;
   }
   return `<span class="status-pill status-ok">Overtime: ${totalDiffHours.toFixed(1)} hours</span>`;
@@ -77,7 +77,7 @@ function weeklyStatusBadge(hoursWorked, isDriver) {
   const diff = hoursWorked - WEEKLY_EXPECTED_HOURS;
   if (Math.abs(diff) < 0.01) return `<span class="status-pill status-ok">Complete: ${WEEKLY_EXPECTED_HOURS} hours</span>`;
   if (diff < 0) {
-    const owedLabel = isDriver ? "You owe" : "Driver Owes You";
+    const owedLabel = isDriver ? "You owe" : "Owes You";
     return `<span class="status-pill status-warning">${owedLabel} ${Math.abs(diff).toFixed(1)} hours</span>`;
   }
   return `<span class="status-pill status-ok">Overtime: ${diff.toFixed(1)} hours</span>`;
