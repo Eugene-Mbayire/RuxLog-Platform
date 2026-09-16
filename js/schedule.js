@@ -292,51 +292,44 @@ async function handleDownload() {
   }
 }
 
-// No web API can inject an image directly into WhatsApp's compose box
-// or pre-select an existing group for you — that's a platform limit,
-// not something any site can work around. This does the closest honest
-// equivalent: copies the schedule image (with just its short caption,
-// not the full entry list) to the clipboard, then opens the group
-// chat directly — for someone already a member, this same invite link
-// opens the conversation itself rather than a "join" screen — so all
-// that's left is one paste, not picking an app or a group.
+// There is no way for a website to post directly into an existing
+// WhatsApp group — that invite link only lets someone join it, and
+// WhatsApp has no public API for a static site to send a message into
+// a specific group on someone's behalf. This hands the schedule to the
+// device's native share sheet (as an image where supported, otherwise
+// just the caption text) and the user picks the group themselves —
+// WhatsApp always requires that one tap, for anyone's messages, not
+// just ours. Only the short caption goes along with the photo — the
+// full entry list stays out of it since it's already visible in the
+// image itself.
 async function handleShareWhatsApp() {
   const btn = document.getElementById("share-whatsapp-btn");
   btn.disabled = true;
 
   try {
     const caption = buildCaption();
-    const target = document.getElementById("schedule-preview");
-    const canvas = await html2canvas(target, { backgroundColor: null, scale: 2 });
-    const blob = await new Promise((resolve) => canvas.toBlob(resolve, "image/png"));
 
-    let copied = false;
-    if (navigator.clipboard && window.ClipboardItem) {
+    if (navigator.share) {
       try {
-        await navigator.clipboard.write([new ClipboardItem({ "image/png": blob })]);
-        copied = true;
+        const target = document.getElementById("schedule-preview");
+        const canvas = await html2canvas(target, { backgroundColor: null, scale: 2 });
+        const blob = await new Promise((resolve) => canvas.toBlob(resolve, "image/png"));
+        const file = new File([blob], `schedule-${currentDate}.png`, { type: "image/png" });
+
+        if (navigator.canShare && navigator.canShare({ files: [file] })) {
+          await navigator.share({ files: [file], text: caption });
+        } else {
+          await navigator.share({ text: caption });
+        }
+        return;
       } catch (err) {
-        console.warn("Could not copy image to clipboard:", err);
+        if (err.name === "AbortError") return; // user cancelled the share sheet
+        console.warn("Native share failed, falling back to WhatsApp web link:", err);
       }
     }
 
-    if (!copied) {
-      // Clipboard image support isn't available here — download it
-      // instead so it's at least ready to attach manually.
-      const link = document.createElement("a");
-      link.download = `schedule-${currentDate}.png`;
-      link.href = URL.createObjectURL(blob);
-      link.click();
-    }
-
-    window.open(WORK_GROUP_LINK, "_blank", "noopener");
-
-    alert(
-      (copied
-        ? "Schedule image copied — paste it (Ctrl+V, or long-press → Paste) into the group chat that just opened."
-        : "Schedule image downloaded — attach it in the group chat that just opened.") +
-        `\n\nCaption: ${caption}`
-    );
+    // Fallback for browsers without the native share sheet (mainly desktop)
+    window.open(`https://wa.me/?text=${encodeURIComponent(caption)}`, "_blank", "noopener");
   } finally {
     btn.disabled = false;
   }
