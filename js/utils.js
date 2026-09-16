@@ -61,6 +61,15 @@ function expiryBadge(dateStr) {
   return `<span class="status-pill status-ok">${days} days remaining</span>`;
 }
 
+// Cumulative status across *all* weeks (not just one), e.g. "owes 5
+// hours total" after several weeks of running short/over the 40h target.
+function totalHoursStatusBadge(totalDiffHours) {
+  if (Math.abs(totalDiffHours) < 0.01) return `<span class="status-pill status-ok">All caught up</span>`;
+  if (totalDiffHours < 0)
+    return `<span class="status-pill status-warning">Owes ${Math.abs(totalDiffHours).toFixed(1)} hours</span>`;
+  return `<span class="status-pill status-ok">${totalDiffHours.toFixed(1)} extra hours</span>`;
+}
+
 function weeklyStatusBadge(hoursWorked) {
   const diff = hoursWorked - WEEKLY_EXPECTED_HOURS;
   if (Math.abs(diff) < 0.01) return `<span class="status-pill status-ok">Complete: ${WEEKLY_EXPECTED_HOURS} hours</span>`;

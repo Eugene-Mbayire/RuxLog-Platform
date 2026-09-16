@@ -53,7 +53,7 @@ document.addEventListener("DOMContentLoaded", async () => {
 async function renderDriverDashboard(profile) {
   const container = document.getElementById("cards-container");
 
-  const [{ data: balances }, { data: sessions }, { data: vehicles }] = await Promise.all([
+  const [{ data: balances }, { data: sessions }, { data: vehicles }, { data: weeklyRecords }] = await Promise.all([
     supabaseClient.from("petty_cash_balance").select("*"),
     supabaseClient
       .from("work_sessions_view")
@@ -62,6 +62,7 @@ async function renderDriverDashboard(profile) {
       .order("sign_in_at", { ascending: false })
       .limit(30),
     supabaseClient.from("vehicles").select("*"),
+    supabaseClient.from("weekly_work_hours").select("worked_hours").eq("driver_id", profile.id),
   ]);
 
   const today = new Date();
@@ -104,6 +105,10 @@ async function renderDriverDashboard(profile) {
         .join("")}</ul>`
     : `<p class="empty-note">No petty cash pools yet.</p>`;
 
+  // Total owed/extra across every week on record, not just this one —
+  // sum of (worked - 40) per week.
+  const totalDiff = (weeklyRecords || []).reduce((sum, w) => sum + (Number(w.worked_hours) - WEEKLY_EXPECTED_HOURS), 0);
+
   container.innerHTML = [
     card("Petty Cash Balance", balancesHtml),
     card("Today's Status", todayStatusHtml),
@@ -111,6 +116,7 @@ async function renderDriverDashboard(profile) {
       "This Week Drivers Worked Hours",
       `<p class="big-value">${weeklyHours.toFixed(1)} / ${WEEKLY_EXPECTED_HOURS} hrs</p>${weeklyStatusBadge(weeklyHours)}`
     ),
+    card("Total Hours Owed / Extra", totalHoursStatusBadge(totalDiff)),
     card("Company Vehicles", vehiclesHtml),
   ].join("");
 }
@@ -128,6 +134,8 @@ async function renderManagerDashboard() {
     { data: docs },
     { data: meds },
     { data: withdrawals },
+    { data: weeklyRecords },
+    { data: drivers },
   ] = await Promise.all([
     supabaseClient.from("profiles").select("*", { count: "exact", head: true }).eq("role", "driver"),
     supabaseClient.from("vehicles").select("*", { count: "exact", head: true }),
@@ -149,6 +157,10 @@ async function renderManagerDashboard() {
       .eq("type", "withdrawal")
       .order("created_at", { ascending: false })
       .limit(5),
+    // weekly_work_hours is a view, so it can't reliably embed a driver
+    // name — fetched separately and joined in JS below instead.
+    supabaseClient.from("weekly_work_hours").select("driver_id, worked_hours"),
+    supabaseClient.from("profiles").select("id, full_name").eq("role", "driver"),
   ]);
 
   const today = new Date();
@@ -233,12 +245,26 @@ async function renderManagerDashboard() {
         .join("")}</ul>`
     : `<p class="empty-note">No petty cash pools yet.</p>`;
 
+  // Total owed/extra per driver across every week on record, not just
+  // this one — sum of (worked - 40) per week, grouped by driver.
+  const totalDiffByDriver = {};
+  (weeklyRecords || []).forEach((w) => {
+    totalDiffByDriver[w.driver_id] =
+      (totalDiffByDriver[w.driver_id] || 0) + (Number(w.worked_hours) - WEEKLY_EXPECTED_HOURS);
+  });
+  const totalHoursHtml = (drivers || []).length
+    ? `<ul>${drivers
+        .map((d) => `<li><span>${d.full_name}</span>${totalHoursStatusBadge(totalDiffByDriver[d.id] || 0)}</li>`)
+        .join("")}</ul>`
+    : `<p class="empty-note">No drivers yet.</p>`;
+
   container.innerHTML = [
     card("Drivers", `<p class="big-value">${driverCount || 0}</p>`),
     card("Vehicles", `<p class="big-value">${vehicleCount || 0}</p>`),
     card("Petty Cash Balance", balancesHtml),
     card("Today's Status", todayStatusHtml),
     card("This Week Drivers Worked Hours", weeklyHtml),
+    card("Total Hours Owed / Extra", totalHoursHtml),
     card("Vehicle Documents Expiring Soon", expiringDocsHtml),
     card("Medicines Expiring Soon", expiringMedsHtml),
     card("Recent Petty Cash Withdrawals", withdrawalsHtml),
