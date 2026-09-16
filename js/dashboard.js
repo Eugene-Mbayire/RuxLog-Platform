@@ -108,7 +108,7 @@ async function renderDriverDashboard(profile) {
     card("Petty Cash Balance", balancesHtml),
     card("Today's Status", todayStatusHtml),
     card(
-      "This Week's Hours",
+      "This Week Drivers Worked Hours",
       `<p class="big-value">${weeklyHours.toFixed(1)} / ${WEEKLY_EXPECTED_HOURS} hrs</p>${weeklyStatusBadge(weeklyHours)}`
     ),
     card("Company Vehicles", vehiclesHtml),
@@ -134,7 +134,7 @@ async function renderManagerDashboard() {
     supabaseClient.from("petty_cash_balance").select("*"),
     supabaseClient
       .from("work_sessions")
-      .select("*, profiles(full_name)")
+      .select("*, profiles(full_name, role)")
       .order("sign_in_at", { ascending: false })
       .limit(100),
     supabaseClient
@@ -153,8 +153,12 @@ async function renderManagerDashboard() {
 
   const today = new Date();
 
+  // Only drivers' hours are tracked — a manager's own sessions (if any
+  // exist from earlier testing) are excluded from these aggregates.
+  const driverSessions = (allSessions || []).filter((s) => s.profiles && s.profiles.role === "driver");
+
   // Today's status per driver
-  const todaySessions = (allSessions || []).filter((s) => isSameDay(new Date(s.sign_in_at), today));
+  const todaySessions = driverSessions.filter((s) => isSameDay(new Date(s.sign_in_at), today));
   const todayStatusHtml = todaySessions.length
     ? `<ul>${todaySessions
         .map(
@@ -171,7 +175,7 @@ async function renderManagerDashboard() {
   const weekEnd = new Date(weekStart);
   weekEnd.setDate(weekEnd.getDate() + 7);
   const weeklyTotals = {};
-  (allSessions || []).forEach((s) => {
+  driverSessions.forEach((s) => {
     const signIn = new Date(s.sign_in_at);
     if (signIn >= weekStart && signIn < weekEnd) {
       const name = s.profiles ? s.profiles.full_name : "Unknown";
@@ -234,7 +238,7 @@ async function renderManagerDashboard() {
     card("Vehicles", `<p class="big-value">${vehicleCount || 0}</p>`),
     card("Petty Cash Balance", balancesHtml),
     card("Today's Status", todayStatusHtml),
-    card("This Week's Hours", weeklyHtml),
+    card("This Week Drivers Worked Hours", weeklyHtml),
     card("Vehicle Documents Expiring Soon", expiringDocsHtml),
     card("Medicines Expiring Soon", expiringMedsHtml),
     card("Recent Petty Cash Withdrawals", withdrawalsHtml),

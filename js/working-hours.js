@@ -50,6 +50,19 @@ async function renderDriverView(container, profile) {
       </div>
     </div>
 
+    <h3 class="section-title">Weekly Record</h3>
+    <p class="text-muted">
+      Every week (Monday–Sunday) stays here permanently, so you can always
+      check back and see whether you owed or had extra hours that week.
+    </p>
+    <div class="table-responsive">
+      <table class="data-table">
+        <thead><tr><th>Week</th><th>Worked</th><th>Status</th></tr></thead>
+        <tbody id="weekly-record-body"></tbody>
+      </table>
+    </div>
+    <div id="weekly-record-pagination" class="pagination"></div>
+
     <h3 class="section-title">History</h3>
     <div class="table-responsive">
       <table class="data-table">
@@ -65,21 +78,31 @@ async function renderDriverView(container, profile) {
   await loadDriverData(profile);
 }
 
-// One query gives us everything this page needs: open-session state,
-// today's card, this week's card, and the full paginated history.
+// One query gives us everything for the live cards + daily history; a
+// second gets the permanent per-week record (see weekly_work_hours in
+// supabase/weekly_work_hours.sql).
 async function loadDriverData(profile) {
-  const { data: sessions, error } = await supabaseClient
-    .from("work_sessions_view")
-    .select("*")
-    .eq("driver_id", profile.id)
-    .order("sign_in_at", { ascending: false })
-    .limit(500);
+  const [{ data: sessions, error }, { data: weeklyRecords, error: weeklyError }] = await Promise.all([
+    supabaseClient
+      .from("work_sessions_view")
+      .select("*")
+      .eq("driver_id", profile.id)
+      .order("sign_in_at", { ascending: false })
+      .limit(500),
+    supabaseClient
+      .from("weekly_work_hours")
+      .select("*")
+      .eq("driver_id", profile.id)
+      .order("week_start", { ascending: false }),
+  ]);
 
   if (error) throw error;
+  if (weeklyError) throw weeklyError;
 
   renderSignToggle(sessions || []);
   renderTodaySummary(sessions || []);
   renderWeekSummary(sessions || []);
+  renderWeeklyRecordTable("weekly-record-body", "weekly-record-pagination", weeklyRecords || [], false);
   renderDriverHistory(sessions || []);
 }
 
@@ -174,6 +197,41 @@ function renderDriverHistory(sessions) {
   });
 }
 
+// Shared renderer for the Weekly Record table (see weekly_work_hours in
+// supabase/weekly_work_hours.sql). Driver view passes its own rows;
+// manager view passes rows with a driverName attached and withDriverColumn
+// set, adding a Driver column.
+function renderWeeklyRecordTable(bodyId, paginationId, rows, withDriverColumn) {
+  const bodyEl = document.getElementById(bodyId);
+  const paginationEl = document.getElementById(paginationId);
+  const columnCount = withDriverColumn ? 4 : 3;
+
+  if (rows.length === 0) {
+    bodyEl.innerHTML = `<tr><td colspan="${columnCount}">No weekly records yet.</td></tr>`;
+    paginationEl.innerHTML = "";
+    return;
+  }
+
+  createPaginator(rows, paginationEl, (pageRows) => {
+    bodyEl.innerHTML = pageRows
+      .map((r) => {
+        // week_start/week_end are plain dates (no time) — parse with an
+        // explicit local time-of-day so the displayed day never shifts
+        // depending on the viewer's timezone offset.
+        const weekLabel = `${formatDate(r.week_start + "T00:00:00")} – ${formatDate(r.week_end + "T00:00:00")}`;
+        const hours = Number(r.worked_hours);
+        const driverCell = withDriverColumn ? `<td data-label="Driver">${r.driverName || "Unknown"}</td>` : "";
+        return `<tr>
+          <td data-label="Week">${weekLabel}</td>
+          ${driverCell}
+          <td data-label="Worked">${hours.toFixed(1)} hrs</td>
+          <td data-label="Status">${weeklyStatusBadge(hours)}</td>
+        </tr>`;
+      })
+      .join("");
+  });
+}
+
 async function handleSignToggle(profile) {
   const btn = document.getElementById("sign-toggle-btn");
   const messageEl = document.getElementById("sign-message");
@@ -212,10 +270,24 @@ async function renderManagerView(container) {
         <div id="today-by-driver">Loading...</div>
       </div>
       <div class="card">
-        <h3>This Week's Hours</h3>
+        <h3>This Week Drivers Worked Hours</h3>
         <div id="week-by-driver">Loading...</div>
       </div>
     </div>
+
+    <h3 class="section-title">Weekly Record</h3>
+    <p class="text-muted">
+      Every driver's week (Monday–Sunday) stays here permanently, so hours
+      owed or extra from any past week are always available, not just the
+      current one.
+    </p>
+    <div class="table-responsive">
+      <table class="data-table">
+        <thead><tr><th>Week</th><th>Driver</th><th>Worked</th><th>Status</th></tr></thead>
+        <tbody id="weekly-record-body"></tbody>
+      </table>
+    </div>
+    <div id="weekly-record-pagination" class="pagination"></div>
 
     <h3 class="section-title">All Sessions</h3>
     <div class="table-responsive">
@@ -227,17 +299,22 @@ async function renderManagerView(container) {
     <div id="history-pagination" class="pagination"></div>
   `;
 
-  const { data: sessions, error } = await supabaseClient
+  const { data: allSessions, error } = await supabaseClient
     .from("work_sessions")
-    .select("*, profiles(full_name)")
+    .select("*, profiles(full_name, role)")
     .order("sign_in_at", { ascending: false })
     .limit(500);
 
   if (error) throw error;
 
-  renderTodayByDriver(sessions || []);
-  renderWeekByDriver(sessions || []);
-  renderManagerHistory(sessions || []);
+  // Only drivers' hours are tracked — a manager's own sessions (if any
+  // exist from earlier testing) are excluded everywhere on this page.
+  const sessions = (allSessions || []).filter((s) => s.profiles && s.profiles.role === "driver");
+
+  renderTodayByDriver(sessions);
+  renderWeekByDriver(sessions);
+  renderManagerHistory(sessions);
+  await renderWeeklyRecordManager();
 }
 
 function renderTodayByDriver(sessions) {
@@ -279,6 +356,27 @@ function renderWeekByDriver(sessions) {
         .map(([name, hours]) => `<li><span>${name}</span><span>${hours.toFixed(1)} / ${WEEKLY_EXPECTED_HOURS} hrs</span></li>`)
         .join("")}</ul>`
     : `<p class="empty-note">No hours logged this week yet.</p>`;
+}
+
+// weekly_work_hours (a view) only has driver_id, not a name — embedding
+// profiles through a view isn't reliably supported by PostgREST, so we
+// fetch driver names separately and join them in JS instead.
+async function renderWeeklyRecordManager() {
+  const [{ data: weeklyRecords, error: weeklyError }, { data: drivers, error: driversError }] = await Promise.all([
+    supabaseClient.from("weekly_work_hours").select("*").order("week_start", { ascending: false }),
+    supabaseClient.from("profiles").select("id, full_name").eq("role", "driver"),
+  ]);
+
+  if (weeklyError) throw weeklyError;
+  if (driversError) throw driversError;
+
+  const nameById = {};
+  (drivers || []).forEach((d) => {
+    nameById[d.id] = d.full_name;
+  });
+
+  const rows = (weeklyRecords || []).map((r) => ({ ...r, driverName: nameById[r.driver_id] }));
+  renderWeeklyRecordTable("weekly-record-body", "weekly-record-pagination", rows, true);
 }
 
 function renderManagerHistory(sessions) {
