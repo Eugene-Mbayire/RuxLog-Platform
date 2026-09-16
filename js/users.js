@@ -6,7 +6,13 @@
 // Supabase Auth has no safe way to do any of that from client-side
 // code without the service_role key, which must never be in frontend
 // code. What this page covers is what CAN be done safely: viewing
-// everyone and editing their name/role once their account exists.
+// everyone as a profile card and editing their name/role/license link
+// once their account exists.
+//
+// Each card is collapsed by default; clicking it expands the details,
+// clicking anywhere outside collapses whichever one is open (the
+// single document-level listener below handles that, registered once
+// rather than per-render).
 // ==========================================================
 
 document.addEventListener("DOMContentLoaded", async () => {
@@ -26,6 +32,11 @@ document.addEventListener("DOMContentLoaded", async () => {
   container.innerHTML = scaffoldHtml();
   wireEditForm();
 
+  document.addEventListener("click", (e) => {
+    if (e.target.closest(".profile-card")) return;
+    document.querySelectorAll(".profile-card.expanded").forEach((el) => el.classList.remove("expanded"));
+  });
+
   try {
     await loadUsers();
   } catch (err) {
@@ -36,26 +47,6 @@ document.addEventListener("DOMContentLoaded", async () => {
 
 function scaffoldHtml() {
   return `
-    <details class="form-card">
-      <summary>How to add a new user</summary>
-      <div>
-        <p>
-          Login accounts can only be created from the Supabase Dashboard, not
-          from this page — that's what keeps account creation secure without
-          putting any sensitive key in this website's code.
-        </p>
-        <ol>
-          <li>Supabase project → <strong>Authentication → Users → Add user</strong>.</li>
-          <li>Enter their email and a password, then create the user.</li>
-          <li>
-            A profile is created for them automatically (as a driver, named
-            after their email) — come back here and click <strong>Edit</strong>
-            on their row to set their real name and role.
-          </li>
-        </ol>
-      </div>
-    </details>
-
     <div class="form-card" id="edit-user-card" hidden>
       <h3>Edit User</h3>
       <form id="edit-user-form">
@@ -71,6 +62,10 @@ function scaffoldHtml() {
             <option value="manager">Manager</option>
           </select>
         </div>
+        <div class="field">
+          <label for="edit-user-license">Driver License Link (Google Drive)</label>
+          <input type="url" id="edit-user-license" placeholder="https://drive.google.com/..." />
+        </div>
         <button type="submit" class="btn btn-auto">Save Changes</button>
         <button type="button" id="cancel-edit-user-btn" class="btn btn-auto btn-off">Cancel</button>
         <p class="error-message" id="edit-user-message"></p>
@@ -78,12 +73,7 @@ function scaffoldHtml() {
     </div>
 
     <h3 class="section-title">All Users</h3>
-    <div class="table-responsive">
-      <table class="data-table">
-        <thead><tr><th>Name</th><th>Email</th><th>Role</th><th>Actions</th></tr></thead>
-        <tbody id="users-body"></tbody>
-      </table>
-    </div>
+    <div id="users-grid" class="card-grid"></div>
     <div id="users-pagination" class="pagination"></div>
   `;
 }
@@ -93,33 +83,35 @@ async function loadUsers() {
 
   if (error) throw error;
 
-  const bodyEl = document.getElementById("users-body");
+  const gridEl = document.getElementById("users-grid");
   const paginationEl = document.getElementById("users-pagination");
 
   if (!data || data.length === 0) {
-    bodyEl.innerHTML = `<tr><td colspan="4">No users yet.</td></tr>`;
+    gridEl.innerHTML = `<p class="empty-note">No users yet.</p>`;
     paginationEl.innerHTML = "";
     return;
   }
 
   createPaginator(data, paginationEl, (pageRows) => {
-    bodyEl.innerHTML = pageRows.map(userRowHtml).join("");
-    wireRowActions(pageRows);
+    renderUsersGrid(pageRows);
   });
 }
 
-function userRowHtml(user) {
-  const roleLabel = user.role === "manager" ? "Manager" : "Driver";
-  return `<tr>
-    <td data-label="Name">${user.full_name}</td>
-    <td data-label="Email">${user.email || "—"}</td>
-    <td data-label="Role">${roleLabel}</td>
-    <td data-label="Actions"><button type="button" class="btn-page" data-edit-id="${user.id}">Edit</button></td>
-  </tr>`;
-}
+function renderUsersGrid(pageRows) {
+  const gridEl = document.getElementById("users-grid");
+  gridEl.innerHTML = pageRows.map(userCardHtml).join("");
 
-function wireRowActions(pageRows) {
-  document.querySelectorAll("[data-edit-id]").forEach((btn) => {
+  gridEl.querySelectorAll(".profile-card").forEach((cardEl) => {
+    cardEl.addEventListener("click", (e) => {
+      if (e.target.closest("[data-edit-id]")) return; // handled separately below
+
+      const alreadyOpen = cardEl.classList.contains("expanded");
+      gridEl.querySelectorAll(".profile-card.expanded").forEach((el) => el.classList.remove("expanded"));
+      if (!alreadyOpen) cardEl.classList.add("expanded");
+    });
+  });
+
+  gridEl.querySelectorAll("[data-edit-id]").forEach((btn) => {
     btn.addEventListener("click", () => {
       const user = pageRows.find((u) => u.id === btn.dataset.editId);
       if (user) openEditForm(user);
@@ -127,10 +119,45 @@ function wireRowActions(pageRows) {
   });
 }
 
+function userCardHtml(user) {
+  const initial = (user.full_name || "?").charAt(0).toUpperCase();
+  const photoHtml = user.photo_path
+    ? `<img src="${user.photo_path}" alt="${user.full_name}" class="profile-card-photo" />`
+    : `<div class="profile-card-photo-placeholder">${initial}</div>`;
+
+  const roleLabel = user.role === "manager" ? "Manager" : "Driver";
+  const rolePillClass = user.role === "manager" ? "status-ok" : "status-warning";
+
+  const licenseHtml =
+    user.role === "driver"
+      ? user.driver_license_url
+        ? `<p><strong>Driver License:</strong><br /><a class="btn-view-doc" href="${user.driver_license_url}" target="_blank" rel="noopener">VIEW LICENSE</a></p>`
+        : `<p class="empty-note">No driver license on file yet.</p>`
+      : "";
+
+  return `
+    <div class="profile-card" data-user-id="${user.id}">
+      <div class="profile-card-header">
+        ${photoHtml}
+        <div>
+          <p class="profile-card-name">${user.full_name}</p>
+          <span class="status-pill ${rolePillClass}">${roleLabel}</span>
+        </div>
+      </div>
+      <div class="profile-card-details">
+        <p><strong>Email:</strong> ${user.email || "—"}</p>
+        ${licenseHtml}
+        <button type="button" class="btn-page" data-edit-id="${user.id}">Edit</button>
+      </div>
+    </div>
+  `;
+}
+
 function openEditForm(user) {
   document.getElementById("edit-user-id").value = user.id;
   document.getElementById("edit-user-name").value = user.full_name;
   document.getElementById("edit-user-role").value = user.role;
+  document.getElementById("edit-user-license").value = user.driver_license_url || "";
 
   const card = document.getElementById("edit-user-card");
   card.hidden = false;
@@ -148,8 +175,12 @@ function wireEditForm() {
     const id = document.getElementById("edit-user-id").value;
     const fullName = document.getElementById("edit-user-name").value.trim();
     const role = document.getElementById("edit-user-role").value;
+    const licenseUrl = document.getElementById("edit-user-license").value.trim() || null;
 
-    const { error } = await supabaseClient.from("profiles").update({ full_name: fullName, role }).eq("id", id);
+    const { error } = await supabaseClient
+      .from("profiles")
+      .update({ full_name: fullName, role, driver_license_url: licenseUrl })
+      .eq("id", id);
 
     if (error) {
       messageEl.textContent = error.message;

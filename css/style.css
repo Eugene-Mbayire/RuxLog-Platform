@@ -733,6 +733,69 @@ fieldset legend {
   max-height: 320px;
 }
 
+/* ---------- Users: profile cards ---------- */
+.profile-card {
+  background: var(--ruxlog-surface);
+  border: 1px solid var(--ruxlog-border);
+  border-radius: var(--radius);
+  padding: 16px;
+  cursor: pointer;
+}
+
+.profile-card:hover {
+  border-color: var(--ruxlog-primary);
+}
+
+.profile-card-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.profile-card-photo {
+  width: 56px;
+  height: 56px;
+  border-radius: 50%;
+  object-fit: cover;
+  border: 2px solid var(--ruxlog-primary);
+  flex-shrink: 0;
+}
+
+.profile-card-photo-placeholder {
+  width: 56px;
+  height: 56px;
+  border-radius: 50%;
+  background: var(--ruxlog-border);
+  color: var(--ruxlog-text-muted);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 700;
+  font-size: 1.2rem;
+  flex-shrink: 0;
+}
+
+.profile-card-name {
+  font-weight: 700;
+  margin: 0 0 6px;
+}
+
+.profile-card-details {
+  display: none;
+  margin-top: 16px;
+  padding-top: 16px;
+  border-top: 1px solid var(--ruxlog-border);
+  font-size: 0.9rem;
+}
+
+.profile-card-details p {
+  margin: 0 0 10px;
+}
+
+.profile-card.expanded .profile-card-details {
+  display: block;
+}
+
 /* ==========================================================
    Mobile responsiveness
    Base styles above already adapt reasonably (card-grid uses
