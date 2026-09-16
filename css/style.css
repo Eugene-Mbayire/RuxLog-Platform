@@ -549,6 +549,15 @@ fieldset legend {
   flex-wrap: wrap;
 }
 
+.qty-input {
+  width: 56px;
+  padding: 6px 8px;
+  border: 1px solid var(--ruxlog-border);
+  border-radius: var(--radius);
+  font-size: 0.9rem;
+  font-family: inherit;
+}
+
 /* Document row layout + a clearly visible call-to-action button */
 .doc-actions {
   display: flex;

@@ -24,6 +24,7 @@ document.addEventListener("DOMContentLoaded", async () => {
     ${isManager ? editMedicineFormHtml() : ""}
 
     <h3 class="section-title">Medicines</h3>
+    <p class="error-message" id="consume-message"></p>
     <div class="table-responsive">
       <table class="data-table">
         <thead>
@@ -233,7 +234,8 @@ function medicineRowHtml(medicine, isManager) {
 
   const consumeAction = outOfStock
     ? `<span class="status-pill status-danger">Out of stock</span>`
-    : `<button type="button" class="btn-page" data-consume-id="${medicine.id}">Consume</button>`;
+    : `<input type="number" class="qty-input" id="consume-qty-${medicine.id}" min="1" max="${medicine.quantity}" value="1" />
+       <button type="button" class="btn-page" data-consume-id="${medicine.id}">Consume</button>`;
 
   const managerActions = isManager
     ? `
@@ -254,17 +256,32 @@ function medicineRowHtml(medicine, isManager) {
 function wireRowActions(pageRows, profile, container, isManager) {
   document.querySelectorAll("[data-consume-id]").forEach((btn) => {
     btn.addEventListener("click", async () => {
+      const messageEl = document.getElementById("consume-message");
+      messageEl.textContent = "";
+
+      const medicineId = btn.dataset.consumeId;
+      const qtyInput = document.getElementById(`consume-qty-${medicineId}`);
+      const quantityUsed = Number(qtyInput.value);
+
+      if (!Number.isInteger(quantityUsed) || quantityUsed < 1) {
+        messageEl.textContent = "Enter a quantity of at least 1.";
+        return;
+      }
+
       btn.disabled = true;
 
-      // quantity_used defaults to 1 — one click consumes one unit.
-      // The database trigger deducts stock and blocks going negative.
+      // The database trigger deducts stock by this exact amount and
+      // blocks it from ever going negative — this page never does
+      // that math itself, it just requests the consumption.
       const { error } = await supabaseClient.from("medicine_consumptions").insert({
-        medicine_id: btn.dataset.consumeId,
+        medicine_id: medicineId,
         user_id: profile.id,
+        quantity_used: quantityUsed,
       });
 
       if (error) {
-        alert("Could not consume: " + error.message);
+        console.error("Consume failed:", error);
+        messageEl.textContent = `Could not consume: ${error.message} (code: ${error.code || "unknown"})`;
         btn.disabled = false;
         return;
       }
