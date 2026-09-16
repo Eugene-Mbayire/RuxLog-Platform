@@ -1,0 +1,463 @@
+/* ==========================================================
+   RuxLog Platform — Base Styles
+   This file holds the shared visual foundation (colors, form
+   controls, buttons, layout basics). Page-specific styles for
+   the dashboard, tables, cards, etc. will be added as those
+   pages are built.
+   ========================================================== */
+
+:root {
+  --ruxlog-primary: #1e3a5f;
+  --ruxlog-primary-dark: #142942;
+  --ruxlog-accent: #2f80ed;
+  --ruxlog-bg: #f4f6f8;
+  --ruxlog-surface: #ffffff;
+  --ruxlog-text: #1f2937;
+  --ruxlog-text-muted: #6b7280;
+  --ruxlog-border: #e2e8f0;
+  --ruxlog-danger: #dc2626;
+  --ruxlog-success: #16a34a;
+  --radius: 8px;
+  --spacing: 16px;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  background: var(--ruxlog-bg);
+  color: var(--ruxlog-text);
+}
+
+/* ---------- Login page ---------- */
+.login-page {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--spacing);
+}
+
+.login-card {
+  background: var(--ruxlog-surface);
+  border-radius: var(--radius);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.08);
+  padding: 32px;
+  width: 100%;
+  max-width: 360px;
+}
+
+.login-card h1 {
+  margin: 0 0 4px;
+  font-size: 1.5rem;
+  color: var(--ruxlog-primary);
+}
+
+.login-card p.subtitle {
+  margin: 0 0 24px;
+  color: var(--ruxlog-text-muted);
+  font-size: 0.9rem;
+}
+
+/* ---------- Form controls (reused everywhere) ---------- */
+.field {
+  margin-bottom: 16px;
+}
+
+.field label {
+  display: block;
+  margin-bottom: 6px;
+  font-size: 0.875rem;
+  font-weight: 600;
+}
+
+.field input {
+  width: 100%;
+  padding: 10px 12px;
+  border: 1px solid var(--ruxlog-border);
+  border-radius: var(--radius);
+  font-size: 1rem;
+  font-family: inherit;
+}
+
+.field input:focus {
+  outline: none;
+  border-color: var(--ruxlog-accent);
+}
+
+/* ---------- Buttons (reused everywhere) ---------- */
+.btn {
+  display: inline-block;
+  width: 100%;
+  padding: 10px 16px;
+  border: none;
+  border-radius: var(--radius);
+  background: var(--ruxlog-primary);
+  color: #fff;
+  font-size: 1rem;
+  font-weight: 600;
+  cursor: pointer;
+  font-family: inherit;
+}
+
+.btn:hover {
+  background: var(--ruxlog-primary-dark);
+}
+
+.btn-secondary {
+  background: transparent;
+  color: #fff;
+  border: 1px solid rgba(255, 255, 255, 0.6);
+  width: auto;
+}
+
+.btn-secondary:hover {
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.error-message {
+  color: var(--ruxlog-danger);
+  font-size: 0.875rem;
+  margin-top: 12px;
+  min-height: 1em;
+}
+
+/* ---------- Top nav bar (used by every logged-in page) ---------- */
+.topbar {
+  background: var(--ruxlog-primary);
+  color: #fff;
+  padding: 12px 24px;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.topbar .brand {
+  font-weight: 700;
+  font-size: 1.1rem;
+}
+
+.nav-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.nav-link {
+  color: rgba(255, 255, 255, 0.85);
+  text-decoration: none;
+  padding: 8px 12px;
+  border-radius: var(--radius);
+  font-size: 0.9rem;
+}
+
+.nav-link:hover {
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.nav-link-active {
+  background: rgba(255, 255, 255, 0.18);
+  color: #fff;
+  font-weight: 600;
+}
+
+.page-content {
+  padding: 24px;
+  max-width: 1080px;
+  margin: 0 auto;
+}
+
+/* ---------- Dashboard ---------- */
+.dashboard-header {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  margin-bottom: 24px;
+}
+
+.dashboard-header h2 {
+  margin: 0;
+}
+
+.profile-photo {
+  width: 56px;
+  height: 56px;
+  border-radius: 50%;
+  object-fit: cover;
+  border: 2px solid var(--ruxlog-primary);
+}
+
+.text-muted {
+  color: var(--ruxlog-text-muted);
+  margin: 4px 0 0;
+  font-size: 0.9rem;
+}
+
+.card-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 16px;
+}
+
+.card {
+  background: var(--ruxlog-surface);
+  border: 1px solid var(--ruxlog-border);
+  border-radius: var(--radius);
+  padding: 20px;
+}
+
+.card h3 {
+  margin: 0 0 12px;
+  font-size: 1rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  color: var(--ruxlog-text);
+}
+
+.card .big-value {
+  font-size: 1.6rem;
+  font-weight: 700;
+  margin: 0 0 8px;
+}
+
+.card ul,
+.form-card ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.card li,
+.form-card li {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 0;
+  border-bottom: 1px solid var(--ruxlog-border);
+  font-size: 0.9rem;
+}
+
+.card li:last-child,
+.form-card li:last-child {
+  border-bottom: none;
+}
+
+.empty-note {
+  color: var(--ruxlog-text-muted);
+  font-size: 0.875rem;
+  margin: 0;
+}
+
+/* ---------- Status pills ---------- */
+.status-pill {
+  display: inline-block;
+  padding: 2px 10px;
+  border-radius: 999px;
+  font-size: 0.8rem;
+  font-weight: 600;
+  background: var(--ruxlog-border);
+  color: var(--ruxlog-text-muted);
+}
+
+.status-ok {
+  background: #dcfce7;
+  color: var(--ruxlog-success);
+}
+
+.status-warning {
+  background: #fef3c7;
+  color: #b45309;
+}
+
+.status-danger {
+  background: #fee2e2;
+  color: var(--ruxlog-danger);
+}
+
+/* ---------- Per-vehicle panels (petty cash, etc.) ---------- */
+.vehicle-panel {
+  padding-top: 24px;
+  margin-top: 24px;
+  border-top: 2px solid var(--ruxlog-border);
+}
+
+.vehicle-panel:first-child {
+  padding-top: 0;
+  margin-top: 0;
+  border-top: none;
+}
+
+.vehicle-panel-title {
+  color: var(--ruxlog-primary);
+  margin-bottom: 16px;
+}
+
+/* ---------- Forms on data pages (petty cash, etc.) ---------- */
+.form-card {
+  background: var(--ruxlog-surface);
+  border: 1px solid var(--ruxlog-border);
+  border-radius: var(--radius);
+  padding: 20px;
+  max-width: 420px;
+  margin-bottom: 24px;
+}
+
+.form-card h3 {
+  margin-top: 0;
+}
+
+/* form-card as a <details> disclosure: collapsed until clicked */
+.form-card summary {
+  cursor: pointer;
+  font-weight: 700;
+  color: var(--ruxlog-primary);
+  list-style: none;
+}
+
+.form-card summary::-webkit-details-marker {
+  display: none;
+}
+
+.form-card summary::before {
+  content: "▸";
+  display: inline-block;
+  margin-right: 8px;
+}
+
+.form-card[open] summary::before {
+  transform: rotate(90deg);
+}
+
+.form-card summary + * {
+  margin-top: 16px;
+}
+
+.form-card form {
+  margin-top: 16px;
+}
+
+.btn-auto {
+  width: auto;
+}
+
+.card-section {
+  margin-bottom: 24px;
+}
+
+.section-title {
+  margin-top: 32px;
+}
+
+/* ---------- Data tables ---------- */
+.table-responsive {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+.data-table {
+  width: 100%;
+  min-width: 480px;
+  border-collapse: collapse;
+  background: var(--ruxlog-surface);
+  border: 1px solid var(--ruxlog-border);
+  border-radius: var(--radius);
+}
+
+.data-table th,
+.data-table td {
+  text-align: left;
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--ruxlog-border);
+  font-size: 0.9rem;
+  white-space: nowrap;
+}
+
+.data-table th {
+  background: var(--ruxlog-bg);
+  font-weight: 800;
+  color: var(--ruxlog-text);
+  text-transform: uppercase;
+  font-size: 1rem;
+  letter-spacing: 0.03em;
+  padding: 14px;
+}
+
+.data-table tr:last-child td {
+  border-bottom: none;
+}
+
+.pagination {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-top: 12px;
+  font-size: 0.9rem;
+}
+
+.btn-page {
+  padding: 8px 16px;
+  border: 1px solid var(--ruxlog-border);
+  border-radius: var(--radius);
+  background: var(--ruxlog-surface);
+  cursor: pointer;
+  font-family: inherit;
+}
+
+.btn-page:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* ==========================================================
+   Mobile responsiveness
+   Base styles above already adapt reasonably (card-grid uses
+   auto-fit so it naturally collapses to one column), these
+   just tighten up spacing and touch targets on small screens.
+   ========================================================== */
+@media (max-width: 640px) {
+  .page-content {
+    padding: 16px;
+  }
+
+  .topbar {
+    flex-direction: column;
+    align-items: stretch;
+    text-align: center;
+    padding: 12px 16px;
+  }
+
+  .nav-links {
+    justify-content: center;
+  }
+
+  .nav-link {
+    padding: 10px 12px;
+  }
+
+  .topbar .btn-secondary {
+    width: 100%;
+  }
+
+  .dashboard-header {
+    flex-wrap: wrap;
+  }
+
+  .btn-auto {
+    width: 100%;
+  }
+
+  .card {
+    padding: 16px;
+  }
+
+  .card .big-value {
+    font-size: 1.4rem;
+  }
+}

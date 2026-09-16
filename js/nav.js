@@ -1,0 +1,49 @@
+// ==========================================================
+// RuxLog Platform — Shared navigation bar
+//
+// Builds the top nav bar and injects it into #nav-placeholder.
+// Every logged-in page includes it the same way:
+//   <div id="nav-placeholder"></div>
+//   <script src="js/nav.js"></script>
+// then calls renderNav(profile) once the profile has loaded.
+//
+// Note: some links below point to pages that don't exist yet
+// (petty-cash.html, working-hours.html, cars.html, first-aid.html,
+// users.html) — they'll work once those pages are built next.
+// ==========================================================
+
+function renderNav(profile) {
+  const navPlaceholder = document.getElementById("nav-placeholder");
+  if (!navPlaceholder) return;
+
+  const links = [
+    { href: "dashboard.html", label: "Dashboard" },
+    { href: "petty-cash.html", label: "Petty Cash" },
+    { href: "working-hours.html", label: "Working Hours" },
+    { href: "cars.html", label: "Vehicles" },
+    { href: "first-aid.html", label: "First Aid" },
+  ];
+
+  if (profile.role === "manager") {
+    links.push({ href: "users.html", label: "Users" });
+  }
+
+  const currentPage = window.location.pathname.split("/").pop();
+
+  const linksHtml = links
+    .map((link) => {
+      const activeClass = link.href === currentPage ? " nav-link-active" : "";
+      return `<a class="nav-link${activeClass}" href="${link.href}">${link.label}</a>`;
+    })
+    .join("");
+
+  navPlaceholder.innerHTML = `
+    <div class="topbar">
+      <span class="brand">RuxLog</span>
+      <nav class="nav-links">${linksHtml}</nav>
+      <button id="logout-btn" class="btn btn-secondary">Logout</button>
+    </div>
+  `;
+
+  document.getElementById("logout-btn").addEventListener("click", logout);
+}

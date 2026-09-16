@@ -1,0 +1,31 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>RuxLog - Dashboard</title>
+  <link rel="stylesheet" href="css/style.css" />
+</head>
+<body>
+  <div id="nav-placeholder"></div>
+
+  <div class="page-content">
+    <div class="dashboard-header">
+      <img id="profile-photo" class="profile-photo" alt="" hidden />
+      <div>
+        <h2 id="welcome-text">Loading...</h2>
+        <p id="today-date" class="text-muted"></p>
+      </div>
+    </div>
+
+    <div id="cards-container" class="card-grid"></div>
+  </div>
+
+  <!-- Supabase client library, loaded from a CDN (no build step needed) -->
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="js/supabase.js"></script>
+  <script src="js/auth.js"></script>
+  <script src="js/nav.js"></script>
+  <script src="js/dashboard.js"></script>
+</body>
+</html>
