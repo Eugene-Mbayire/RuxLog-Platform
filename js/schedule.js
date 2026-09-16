@@ -292,63 +292,59 @@ async function handleDownload() {
   }
 }
 
-// There is no way for a website to post directly into an existing
-// WhatsApp group — that invite link only lets someone join it, and
-// WhatsApp has no public API for a static site to send a message into
-// a specific group on someone's behalf. This does the best honest
-// equivalent: hands the schedule to the device's native share sheet
-// (as an image where supported, otherwise as formatted text), and the
-// user picks the group themselves — WhatsApp always requires that one
-// tap, for anyone's messages, not just ours.
+// No web API can inject an image directly into WhatsApp's compose box
+// or pre-select an existing group for you — that's a platform limit,
+// not something any site can work around. This does the closest honest
+// equivalent: copies the schedule image (with just its short caption,
+// not the full entry list) to the clipboard, then opens the group
+// chat directly — for someone already a member, this same invite link
+// opens the conversation itself rather than a "join" screen — so all
+// that's left is one paste, not picking an app or a group.
 async function handleShareWhatsApp() {
   const btn = document.getElementById("share-whatsapp-btn");
   btn.disabled = true;
 
   try {
-    const text = buildWhatsAppText();
+    const caption = buildCaption();
+    const target = document.getElementById("schedule-preview");
+    const canvas = await html2canvas(target, { backgroundColor: null, scale: 2 });
+    const blob = await new Promise((resolve) => canvas.toBlob(resolve, "image/png"));
 
-    if (navigator.share) {
+    let copied = false;
+    if (navigator.clipboard && window.ClipboardItem) {
       try {
-        const target = document.getElementById("schedule-preview");
-        const canvas = await html2canvas(target, { backgroundColor: null, scale: 2 });
-        const blob = await new Promise((resolve) => canvas.toBlob(resolve, "image/png"));
-        const file = new File([blob], `schedule-${currentDate}.png`, { type: "image/png" });
-
-        if (navigator.canShare && navigator.canShare({ files: [file] })) {
-          await navigator.share({ files: [file], text });
-        } else {
-          await navigator.share({ text });
-        }
-        return;
+        await navigator.clipboard.write([new ClipboardItem({ "image/png": blob })]);
+        copied = true;
       } catch (err) {
-        if (err.name === "AbortError") return; // user cancelled the share sheet
-        console.warn("Native share failed, falling back to WhatsApp web link:", err);
+        console.warn("Could not copy image to clipboard:", err);
       }
     }
 
-    // Fallback for browsers without the native share sheet (mainly
-    // desktop): opens WhatsApp with the text pre-filled.
-    window.open(`https://wa.me/?text=${encodeURIComponent(text)}`, "_blank", "noopener");
+    if (!copied) {
+      // Clipboard image support isn't available here — download it
+      // instead so it's at least ready to attach manually.
+      const link = document.createElement("a");
+      link.download = `schedule-${currentDate}.png`;
+      link.href = URL.createObjectURL(blob);
+      link.click();
+    }
+
+    window.open(WORK_GROUP_LINK, "_blank", "noopener");
+
+    alert(
+      (copied
+        ? "Schedule image copied — paste it (Ctrl+V, or long-press → Paste) into the group chat that just opened."
+        : "Schedule image downloaded — attach it in the group chat that just opened.") +
+        `\n\nCaption: ${caption}`
+    );
   } finally {
     btn.disabled = false;
   }
 }
 
-function buildWhatsAppText() {
+function buildCaption() {
   const dateObj = new Date(currentDate + "T00:00:00");
   const weekday = dateObj.toLocaleDateString(undefined, { weekday: "long" }).toUpperCase();
-  const dateLabel = formatDate(currentDate + "T00:00:00");
-
-  let text = `*${weekday} SCHEDULE* (${dateLabel})\n\n`;
-
-  if (currentEntries.length === 0) {
-    text += "No entries yet.";
-  } else {
-    currentEntries.forEach((e) => {
-      const check = e.completed ? "✅ " : "";
-      text += `${check}*${formatEntryTime(e.entry_time)}:* ${e.description}\n`;
-    });
-  }
-
-  return text;
+  const dateLabel = dateObj.toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" });
+  return `${weekday} SCHEDULE (${dateLabel})`;
 }
