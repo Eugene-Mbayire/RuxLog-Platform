@@ -2,14 +2,14 @@
 // RuxLog Platform — Pagination helper
 //
 // Renders "Previous  Page X of Y  Next" controls and slices an
-// already-fetched array of rows into pages of 10. Reused by every
-// page with a table that might exceed 10 records (spec section 14).
+// already-fetched array of rows into pages of 5. Reused by every
+// page with a table that might exceed 5 records.
 // Data sets here are small (family-business scale), so fetching
 // everything once and paginating in the browser is simpler than
 // server-side range queries, and plenty fast enough.
 // ==========================================================
 
-const ROWS_PER_PAGE = 10;
+const ROWS_PER_PAGE = 5;
 
 // allRows: full array of data
 // controlsEl: element to render the Previous/Page/Next controls into
