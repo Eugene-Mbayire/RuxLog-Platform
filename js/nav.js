@@ -19,9 +19,9 @@ function renderNav(profile) {
   const links = [
     { href: "dashboard.html", label: "Dashboard" },
     { href: "petty-cash.html", label: "Petty Cash" },
-    { href: "working-hours.html", label: "Working Hours" },
+    { href: "working-hours.html", label: profile.role === "manager" ? "Worked Hours" : "Check IN" },
     { href: "cars.html", label: "Vehicles" },
-    { href: "first-aid.html", label: "First Aid" },
+    { href: "first-aid.html", label: "First-Aid_Kit" },
   ];
 
   if (profile.role === "manager") {

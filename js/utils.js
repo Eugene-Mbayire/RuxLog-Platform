@@ -61,25 +61,54 @@ function expiryBadge(dateStr) {
   return `<span class="status-pill status-ok">${days} days remaining</span>`;
 }
 
-// Cumulative status across *all* weeks (not just one), e.g. "owes 5
-// hours total" after several weeks of running short/over the 40h target.
-function totalHoursStatusBadge(totalDiffHours) {
+// Cumulative status across *all* weeks (not just one). Wording changes
+// by perspective: a driver sees "You owe", a manager sees "Owes" about
+// that driver — both sides always see "Overtime" for hours above target.
+function totalHoursStatusBadge(totalDiffHours, isDriver) {
   if (Math.abs(totalDiffHours) < 0.01) return `<span class="status-pill status-ok">All caught up</span>`;
-  if (totalDiffHours < 0)
-    return `<span class="status-pill status-warning">Owes ${Math.abs(totalDiffHours).toFixed(1)} hours</span>`;
-  return `<span class="status-pill status-ok">${totalDiffHours.toFixed(1)} extra hours</span>`;
+  if (totalDiffHours < 0) {
+    const owedLabel = isDriver ? "You owe" : "Owes You";
+    return `<span class="status-pill status-warning">${owedLabel} ${Math.abs(totalDiffHours).toFixed(1)} hours</span>`;
+  }
+  return `<span class="status-pill status-ok">Overtime: ${totalDiffHours.toFixed(1)} hours</span>`;
 }
 
-function weeklyStatusBadge(hoursWorked) {
+function weeklyStatusBadge(hoursWorked, isDriver) {
   const diff = hoursWorked - WEEKLY_EXPECTED_HOURS;
   if (Math.abs(diff) < 0.01) return `<span class="status-pill status-ok">Complete: ${WEEKLY_EXPECTED_HOURS} hours</span>`;
-  if (diff < 0) return `<span class="status-pill status-warning">Owed: ${Math.abs(diff).toFixed(1)} hours</span>`;
-  return `<span class="status-pill status-ok">Extra: ${diff.toFixed(1)} hours</span>`;
+  if (diff < 0) {
+    const owedLabel = isDriver ? "You owe" : "Owes You";
+    return `<span class="status-pill status-warning">${owedLabel} ${Math.abs(diff).toFixed(1)} hours</span>`;
+  }
+  return `<span class="status-pill status-ok">Overtime: ${diff.toFixed(1)} hours</span>`;
 }
 
 function dailyStatusBadge(workedHours) {
   if (workedHours >= DAILY_EXPECTED_HOURS) return `<span class="status-pill status-ok">Complete</span>`;
   return `<span class="status-pill status-warning">Less than ${DAILY_EXPECTED_HOURS}h</span>`;
+}
+
+// One status per driver for "who's on duty today" style cards.
+// Precedence: an open session always wins (they're actively working
+// right now), then a closed session today, then an OFF mark, then
+// nothing happened yet today.
+function driverDayStatus(driverId, todaySessions, todayOffMarks) {
+  const openSession = todaySessions.find((s) => s.driver_id === driverId && !s.sign_out_at);
+  if (openSession) return { label: "Signed in", pillClass: "status-ok" };
+
+  const closedSession = todaySessions.find((s) => s.driver_id === driverId && s.sign_out_at);
+  if (closedSession) return { label: "Signed off", pillClass: "" };
+
+  const offMark = todayOffMarks.find((o) => o.driver_id === driverId);
+  if (offMark) return { label: "OFF Day", pillClass: "status-warning" };
+
+  return { label: "Not signed in yet", pillClass: "" };
+}
+
+function driverDayStatusHtml(status) {
+  return status.pillClass
+    ? `<span class="status-pill ${status.pillClass}">${status.label}</span>`
+    : status.label;
 }
 
 function card(title, bodyHtml) {

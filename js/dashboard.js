@@ -53,20 +53,25 @@ document.addEventListener("DOMContentLoaded", async () => {
 async function renderDriverDashboard(profile) {
   const container = document.getElementById("cards-container");
 
-  const [{ data: balances }, { data: sessions }, { data: vehicles }, { data: weeklyRecords }] = await Promise.all([
-    supabaseClient.from("petty_cash_balance").select("*"),
-    supabaseClient
-      .from("work_sessions_view")
-      .select("*")
-      .eq("driver_id", profile.id)
-      .order("sign_in_at", { ascending: false })
-      .limit(30),
-    supabaseClient.from("vehicles").select("*"),
-    supabaseClient.from("weekly_work_hours").select("worked_hours").eq("driver_id", profile.id),
-  ]);
+  const todayStr = (new Date()).toISOString().slice(0, 10);
+
+  const [{ data: balances }, { data: sessions }, { data: vehicles }, { data: weeklyRecords }, { data: offMarks }] =
+    await Promise.all([
+      supabaseClient.from("petty_cash_balance").select("*"),
+      supabaseClient
+        .from("work_sessions_view")
+        .select("*")
+        .eq("driver_id", profile.id)
+        .order("sign_in_at", { ascending: false })
+        .limit(30),
+      supabaseClient.from("vehicles").select("*"),
+      supabaseClient.from("weekly_work_hours").select("worked_hours").eq("driver_id", profile.id),
+      supabaseClient.from("driver_day_off").select("day").eq("driver_id", profile.id).eq("day", todayStr),
+    ]);
 
   const today = new Date();
   const todaySession = (sessions || []).find((s) => isSameDay(new Date(s.sign_in_at), today));
+  const markedOffToday = (offMarks || []).length > 0;
 
   const weekStart = startOfWeek(today);
   const weekEnd = new Date(weekStart);
@@ -79,7 +84,9 @@ async function renderDriverDashboard(profile) {
 
   let todayStatusHtml;
   if (!todaySession) {
-    todayStatusHtml = `<p class="empty-note">Not signed in yet today.</p>`;
+    todayStatusHtml = markedOffToday
+      ? `<p class="empty-note">You're marked OFF today.</p>`
+      : `<p class="empty-note">Not signed in yet today.</p>`;
   } else {
     const workedToday = Number(todaySession.worked_hours);
     const lessThanExpected = todaySession.sign_out_at && workedToday < DAILY_EXPECTED_HOURS;
@@ -114,9 +121,9 @@ async function renderDriverDashboard(profile) {
     card("Today's Status", todayStatusHtml),
     card(
       "This Week Drivers Worked Hours",
-      `<p class="big-value">${weeklyHours.toFixed(1)} / ${WEEKLY_EXPECTED_HOURS} hrs</p>${weeklyStatusBadge(weeklyHours)}`
+      `<p class="big-value">${weeklyHours.toFixed(1)} / ${WEEKLY_EXPECTED_HOURS} hrs</p>${weeklyStatusBadge(weeklyHours, true)}`
     ),
-    card("Total Hours Owed / Extra", totalHoursStatusBadge(totalDiff)),
+    card("Total Hours Owed / Extra", totalHoursStatusBadge(totalDiff, true)),
     card("Company Vehicles", vehiclesHtml),
   ].join("");
 }
@@ -126,6 +133,8 @@ async function renderDriverDashboard(profile) {
 async function renderManagerDashboard() {
   const container = document.getElementById("cards-container");
 
+  const todayStr = (new Date()).toISOString().slice(0, 10);
+
   const [
     { data: balances },
     { data: allSessions },
@@ -134,6 +143,7 @@ async function renderManagerDashboard() {
     { data: withdrawals },
     { data: weeklyRecords },
     { data: drivers },
+    { data: offMarks },
   ] = await Promise.all([
     supabaseClient.from("petty_cash_balance").select("*"),
     supabaseClient
@@ -157,6 +167,7 @@ async function renderManagerDashboard() {
     // name — fetched separately and joined in JS below instead.
     supabaseClient.from("weekly_work_hours").select("driver_id, worked_hours"),
     supabaseClient.from("profiles").select("id, full_name").eq("role", "driver"),
+    supabaseClient.from("driver_day_off").select("driver_id").eq("day", todayStr),
   ]);
 
   const today = new Date();
@@ -165,17 +176,16 @@ async function renderManagerDashboard() {
   // exist from earlier testing) are excluded from these aggregates.
   const driverSessions = (allSessions || []).filter((s) => s.profiles && s.profiles.role === "driver");
 
-  // Today's status per driver
+  // One row per driver (never one row per sign-in/out event)
   const todaySessions = driverSessions.filter((s) => isSameDay(new Date(s.sign_in_at), today));
-  const todayStatusHtml = todaySessions.length
-    ? `<ul>${todaySessions
-        .map((s) => {
-          const name = s.profiles ? s.profiles.full_name : "Unknown";
-          const status = s.sign_out_at ? "Signed out" : s.is_off ? "OFF" : "Signed in";
-          return `<li><span>${name}</span><span>${status}</span></li>`;
+  const todayStatusHtml = (drivers || []).length
+    ? `<ul>${(drivers || [])
+        .map((d) => {
+          const status = driverDayStatus(d.id, todaySessions, offMarks || []);
+          return `<li><span>${d.full_name}</span><span>${driverDayStatusHtml(status)}</span></li>`;
         })
         .join("")}</ul>`
-    : `<p class="empty-note">No drivers signed in today yet.</p>`;
+    : `<p class="empty-note">No drivers yet.</p>`;
 
   // This week's hours per driver
   const weekStart = startOfWeek(today);
@@ -249,7 +259,7 @@ async function renderManagerDashboard() {
   });
   const totalHoursHtml = (drivers || []).length
     ? `<ul>${drivers
-        .map((d) => `<li><span>${d.full_name}</span>${totalHoursStatusBadge(totalDiffByDriver[d.id] || 0)}</li>`)
+        .map((d) => `<li><span>${d.full_name}</span>${totalHoursStatusBadge(totalDiffByDriver[d.id] || 0, false)}</li>`)
         .join("")}</ul>`
     : `<p class="empty-note">No drivers yet.</p>`;
 

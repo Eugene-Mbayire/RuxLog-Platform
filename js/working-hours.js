@@ -15,6 +15,10 @@ document.addEventListener("DOMContentLoaded", async () => {
 
   renderNav(profile);
 
+  const pageTitle = profile.role === "manager" ? "Worked Hours" : "Check IN";
+  document.getElementById("page-heading").textContent = pageTitle;
+  document.title = `RuxLog - ${pageTitle}`;
+
   const container = document.getElementById("working-hours-content");
 
   try {
@@ -38,7 +42,7 @@ async function renderDriverView(container, profile) {
         <h3>Status</h3>
         <p class="big-value" id="status-value">Loading...</p>
         <button type="button" id="sign-toggle-btn" class="btn btn-large" disabled>Loading...</button>
-        <button type="button" id="off-toggle-btn" class="btn btn-auto btn-off" hidden>OFF</button>
+        <button type="button" id="off-toggle-btn" class="btn btn-auto btn-off" hidden>OFF DAY</button>
         <p class="error-message" id="sign-message"></p>
       </div>
       <div class="card">
@@ -82,9 +86,15 @@ async function renderDriverView(container, profile) {
 
 // One query gives us everything for the live cards + daily history; a
 // second gets the permanent per-week record (see weekly_work_hours in
-// supabase/weekly_work_hours.sql).
+// supabase/weekly_work_hours.sql); a third checks whether today is
+// already marked off (see supabase/driver_day_off.sql).
 async function loadDriverData(profile) {
-  const [{ data: sessions, error }, { data: weeklyRecords, error: weeklyError }] = await Promise.all([
+  const today = (new Date()).toISOString().slice(0, 10);
+  const [
+    { data: sessions, error },
+    { data: weeklyRecords, error: weeklyError },
+    { data: offMarks, error: offError },
+  ] = await Promise.all([
     supabaseClient
       .from("work_sessions_view")
       .select("*")
@@ -96,51 +106,47 @@ async function loadDriverData(profile) {
       .select("*")
       .eq("driver_id", profile.id)
       .order("week_start", { ascending: false }),
+    supabaseClient.from("driver_day_off").select("day").eq("driver_id", profile.id).eq("day", today),
   ]);
 
   if (error) throw error;
   if (weeklyError) throw weeklyError;
+  if (offError) throw offError;
 
-  renderSignToggle(sessions || []);
-  renderTodaySummary(sessions || []);
+  const markedOffToday = (offMarks || []).length > 0;
+
+  renderSignToggle(sessions || [], markedOffToday);
+  renderTodaySummary(sessions || [], markedOffToday);
   renderWeekSummary(sessions || []);
   renderWeeklyRecordTable("weekly-record-body", "weekly-record-pagination", weeklyRecords || [], false);
   renderDriverHistory(sessions || []);
 }
 
-function renderSignToggle(sessions) {
+function renderSignToggle(sessions, markedOffToday) {
   const openSession = sessions.find((s) => !s.sign_out_at);
   const statusValueEl = document.getElementById("status-value");
   const btn = document.getElementById("sign-toggle-btn");
   const offBtn = document.getElementById("off-toggle-btn");
 
   if (openSession) {
-    statusValueEl.textContent = openSession.is_off
-      ? `OFF (signed in at ${formatTime(openSession.sign_in_at)})`
-      : `Signed in at ${formatTime(openSession.sign_in_at)}`;
+    statusValueEl.textContent = `Signed in at ${formatTime(openSession.sign_in_at)}`;
     btn.textContent = "Sign Out";
     btn.classList.add("btn-signout");
     btn.dataset.action = "sign-out";
     btn.dataset.sessionId = openSession.id;
 
-    // The OFF toggle only makes sense while there's an open session —
-    // between Sign In and Sign Out.
-    offBtn.hidden = false;
-    offBtn.dataset.sessionId = openSession.id;
-    if (openSession.is_off) {
-      offBtn.textContent = "Back On Duty";
-      offBtn.dataset.setOff = "false";
-    } else {
-      offBtn.textContent = "OFF";
-      offBtn.dataset.setOff = "true";
-    }
+    // OFF only makes sense before signing in — there's no "day off" once
+    // you're actively working.
+    offBtn.hidden = true;
   } else {
     statusValueEl.textContent = "Not signed in";
     btn.textContent = "Sign In";
     btn.classList.remove("btn-signout");
     btn.dataset.action = "sign-in";
     btn.dataset.sessionId = "";
-    offBtn.hidden = true;
+
+    offBtn.hidden = markedOffToday;
+    offBtn.textContent = "OFF DAY";
   }
   btn.disabled = false;
   offBtn.disabled = false;
@@ -152,12 +158,13 @@ async function handleOffToggle(profile) {
   messageEl.textContent = "";
   offBtn.disabled = true;
 
-  const { error } = await supabaseClient
-    .from("work_sessions")
-    .update({ is_off: offBtn.dataset.setOff === "true" })
-    .eq("id", offBtn.dataset.sessionId);
+  // day is forced to today (Rwanda local time) by the database trigger
+  // regardless of anything sent here, and the trigger also rejects this
+  // if a session is currently open.
+  const { error } = await supabaseClient.from("driver_day_off").insert({ driver_id: profile.id });
 
-  if (error) {
+  // 23505 = already marked off today — treat that as success, not an error.
+  if (error && error.code !== "23505") {
     messageEl.textContent = error.message;
     offBtn.disabled = false;
     return;
@@ -166,13 +173,15 @@ async function handleOffToggle(profile) {
   await loadDriverData(profile);
 }
 
-function renderTodaySummary(sessions) {
+function renderTodaySummary(sessions, markedOffToday) {
   const today = new Date();
   const todaySession = sessions.find((s) => isSameDay(new Date(s.sign_in_at), today));
   const el = document.getElementById("today-summary");
 
   if (!todaySession) {
-    el.innerHTML = `<p class="empty-note">Not signed in yet today.</p>`;
+    el.innerHTML = markedOffToday
+      ? `<p class="empty-note">You're marked OFF today.</p>`
+      : `<p class="empty-note">Not signed in yet today.</p>`;
     return;
   }
 
@@ -203,7 +212,7 @@ function renderWeekSummary(sessions) {
 
   document.getElementById("week-summary").innerHTML = `
     <p class="big-value">${weeklyHours.toFixed(1)} / ${WEEKLY_EXPECTED_HOURS} hrs</p>
-    ${weeklyStatusBadge(weeklyHours)}
+    ${weeklyStatusBadge(weeklyHours, true)}
   `;
 }
 
@@ -264,7 +273,7 @@ function renderWeeklyRecordTable(bodyId, paginationId, rows, withDriverColumn) {
           <td data-label="Week">${weekLabel}</td>
           ${driverCell}
           <td data-label="Worked">${hours.toFixed(1)} hrs</td>
-          <td data-label="Status">${weeklyStatusBadge(hours)}</td>
+          <td data-label="Status">${weeklyStatusBadge(hours, !withDriverColumn)}</td>
         </tr>`;
       })
       .join("");
@@ -338,41 +347,48 @@ async function renderManagerView(container) {
     <div id="history-pagination" class="pagination"></div>
   `;
 
-  const { data: allSessions, error } = await supabaseClient
-    .from("work_sessions")
-    .select("*, profiles(full_name, role)")
-    .order("sign_in_at", { ascending: false })
-    .limit(500);
+  const today = (new Date()).toISOString().slice(0, 10);
+  const [{ data: allSessions, error }, { data: drivers, error: driversError }, { data: offMarks, error: offError }] =
+    await Promise.all([
+      supabaseClient
+        .from("work_sessions")
+        .select("*, profiles(full_name, role)")
+        .order("sign_in_at", { ascending: false })
+        .limit(500),
+      supabaseClient.from("profiles").select("id, full_name").eq("role", "driver"),
+      supabaseClient.from("driver_day_off").select("driver_id").eq("day", today),
+    ]);
 
   if (error) throw error;
+  if (driversError) throw driversError;
+  if (offError) throw offError;
 
   // Only drivers' hours are tracked — a manager's own sessions (if any
   // exist from earlier testing) are excluded everywhere on this page.
   const sessions = (allSessions || []).filter((s) => s.profiles && s.profiles.role === "driver");
 
-  renderTodayByDriver(sessions);
+  renderTodayByDriver(drivers || [], sessions, offMarks || []);
   renderWeekByDriver(sessions);
   renderManagerHistory(sessions);
   await renderWeeklyRecordManager();
 }
 
-function renderTodayByDriver(sessions) {
+// One row per driver (never one row per sign-in/out event), showing
+// their current status right now: Signed in, Signed off, OFF, or
+// nothing yet today.
+function renderTodayByDriver(drivers, sessions, offMarks) {
   const today = new Date();
   const todaySessions = sessions.filter((s) => isSameDay(new Date(s.sign_in_at), today));
   const el = document.getElementById("today-by-driver");
 
-  el.innerHTML = todaySessions.length
-    ? `<ul>${todaySessions
-        .map((s) => {
-          const name = s.profiles ? s.profiles.full_name : "Unknown";
-          let status;
-          if (s.sign_out_at) status = `Signed out ${formatTime(s.sign_out_at)}`;
-          else if (s.is_off) status = `<span class="status-pill status-warning">OFF</span>`;
-          else status = `Signed in ${formatTime(s.sign_in_at)}`;
-          return `<li><span>${name}</span><span>${status}</span></li>`;
+  el.innerHTML = drivers.length
+    ? `<ul>${drivers
+        .map((d) => {
+          const status = driverDayStatus(d.id, todaySessions, offMarks);
+          return `<li><span>${d.full_name}</span><span>${driverDayStatusHtml(status)}</span></li>`;
         })
         .join("")}</ul>`
-    : `<p class="empty-note">No drivers signed in today yet.</p>`;
+    : `<p class="empty-note">No drivers yet.</p>`;
 }
 
 function renderWeekByDriver(sessions) {
