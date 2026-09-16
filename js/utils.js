@@ -111,6 +111,17 @@ function driverDayStatusHtml(status) {
     : status.label;
 }
 
+// Local calendar date as "YYYY-MM-DD", safe for any timezone — unlike
+// date.toISOString().slice(0, 10), which converts to UTC first and can
+// silently shift the date backward a day for positive UTC offsets
+// (e.g. Rwanda's UTC+2), especially right after local midnight.
+function toDateString(date) {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
 function card(title, bodyHtml) {
   return `<div class="card"><h3>${title}</h3>${bodyHtml}</div>`;
 }

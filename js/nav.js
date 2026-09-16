@@ -22,6 +22,7 @@ function renderNav(profile) {
     { href: "working-hours.html", label: profile.role === "manager" ? "Worked Hours" : "Check IN" },
     { href: "cars.html", label: "Vehicles" },
     { href: "first-aid.html", label: "First-Aid-Kit" },
+    { href: "schedule.html", label: "Schedule" },
   ];
 
   if (profile.role === "manager") {

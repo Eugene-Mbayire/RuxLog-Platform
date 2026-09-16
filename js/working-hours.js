@@ -89,7 +89,7 @@ async function renderDriverView(container, profile) {
 // supabase/weekly_work_hours.sql); a third checks whether today is
 // already marked off (see supabase/driver_day_off.sql).
 async function loadDriverData(profile) {
-  const today = (new Date()).toISOString().slice(0, 10);
+  const today = toDateString(new Date());
   const [
     { data: sessions, error },
     { data: weeklyRecords, error: weeklyError },
@@ -347,7 +347,7 @@ async function renderManagerView(container) {
     <div id="history-pagination" class="pagination"></div>
   `;
 
-  const today = (new Date()).toISOString().slice(0, 10);
+  const today = toDateString(new Date());
   const [{ data: allSessions, error }, { data: drivers, error: driversError }, { data: offMarks, error: offError }] =
     await Promise.all([
       supabaseClient

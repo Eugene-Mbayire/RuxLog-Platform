@@ -53,7 +53,7 @@ document.addEventListener("DOMContentLoaded", async () => {
 async function renderDriverDashboard(profile) {
   const container = document.getElementById("cards-container");
 
-  const todayStr = (new Date()).toISOString().slice(0, 10);
+  const todayStr = toDateString(new Date());
 
   const [{ data: balances }, { data: sessions }, { data: vehicles }, { data: weeklyRecords }, { data: offMarks }] =
     await Promise.all([
@@ -133,7 +133,7 @@ async function renderDriverDashboard(profile) {
 async function renderManagerDashboard() {
   const container = document.getElementById("cards-container");
 
-  const todayStr = (new Date()).toISOString().slice(0, 10);
+  const todayStr = toDateString(new Date());
 
   const [
     { data: balances },

@@ -582,6 +582,129 @@ fieldset legend {
   background: var(--ruxlog-primary-dark);
 }
 
+/* ---------- Schedule ---------- */
+.schedule-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 24px;
+  flex-wrap: wrap;
+}
+
+.schedule-toolbar input[type="date"] {
+  padding: 8px 12px;
+  border: 1px solid var(--ruxlog-border);
+  border-radius: var(--radius);
+  font-family: inherit;
+}
+
+.schedule-layout {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 24px;
+  align-items: start;
+}
+
+.schedule-entry-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.schedule-list-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  background: var(--ruxlog-surface);
+  border: 1px solid var(--ruxlog-border);
+  border-radius: var(--radius);
+  padding: 10px 14px;
+  margin-bottom: 8px;
+  font-size: 0.9rem;
+  flex-wrap: wrap;
+}
+
+.schedule-preview-panel {
+  position: sticky;
+  top: 16px;
+}
+
+/* Styled to match the dark, hand-written-note look of the paper/notes
+   app schedule this replaces — this is exactly what gets downloaded. */
+.schedule-card {
+  background: #2b2b28;
+  color: #fff;
+  border-radius: 12px;
+  padding: 32px;
+  max-width: 420px;
+  margin: 0 auto 16px;
+}
+
+.schedule-card h2 {
+  font-style: italic;
+  font-weight: 800;
+  text-transform: uppercase;
+  margin: 0 0 12px;
+  font-size: 1.3rem;
+  letter-spacing: 0.02em;
+  color: #fff;
+}
+
+.schedule-divider {
+  border: none;
+  border-top: 2px dashed rgba(255, 255, 255, 0.4);
+  margin: 0 0 20px;
+}
+
+.schedule-entry {
+  margin: 0 0 18px;
+  font-size: 1rem;
+  line-height: 1.4;
+}
+
+.schedule-entry .entry-time {
+  font-weight: 800;
+}
+
+.schedule-entry .entry-desc {
+  font-style: italic;
+}
+
+.schedule-watermark {
+  margin: 24px 0 0;
+  text-align: right;
+  font-size: 0.75rem;
+  opacity: 0.6;
+  letter-spacing: 0.05em;
+}
+
+.schedule-entry-completed {
+  opacity: 0.6;
+}
+
+.schedule-entry-completed .entry-desc {
+  text-decoration: line-through;
+}
+
+.schedule-item-text {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.schedule-checkbox {
+  width: 18px;
+  height: 18px;
+  flex-shrink: 0;
+  cursor: pointer;
+}
+
+.schedule-completed-text {
+  text-decoration: line-through;
+  color: var(--ruxlog-text-muted);
+}
+
 /* ==========================================================
    Mobile responsiveness
    Base styles above already adapt reasonably (card-grid uses
@@ -589,6 +712,14 @@ fieldset legend {
    just tighten up spacing and touch targets on small screens.
    ========================================================== */
 @media (max-width: 640px) {
+  .schedule-layout {
+    grid-template-columns: 1fr;
+  }
+
+  .schedule-preview-panel {
+    position: static;
+  }
+
   .page-content {
     padding: 16px;
   }
