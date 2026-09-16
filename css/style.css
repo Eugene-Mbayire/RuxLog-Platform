@@ -386,6 +386,15 @@ body {
   background: #92400e;
 }
 
+.btn-off {
+  background: var(--ruxlog-text-muted);
+  margin-top: 8px;
+}
+
+.btn-off:hover {
+  background: var(--ruxlog-text);
+}
+
 .card-section {
   margin-bottom: 24px;
 }

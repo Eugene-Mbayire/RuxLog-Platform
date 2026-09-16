@@ -169,12 +169,11 @@ async function renderManagerDashboard() {
   const todaySessions = driverSessions.filter((s) => isSameDay(new Date(s.sign_in_at), today));
   const todayStatusHtml = todaySessions.length
     ? `<ul>${todaySessions
-        .map(
-          (s) =>
-            `<li><span>${s.profiles ? s.profiles.full_name : "Unknown"}</span><span>${
-              s.sign_out_at ? "Signed out" : "Signed in"
-            }</span></li>`
-        )
+        .map((s) => {
+          const name = s.profiles ? s.profiles.full_name : "Unknown";
+          const status = s.sign_out_at ? "Signed out" : s.is_off ? "OFF" : "Signed in";
+          return `<li><span>${name}</span><span>${status}</span></li>`;
+        })
         .join("")}</ul>`
     : `<p class="empty-note">No drivers signed in today yet.</p>`;
 

@@ -38,6 +38,7 @@ async function renderDriverView(container, profile) {
         <h3>Status</h3>
         <p class="big-value" id="status-value">Loading...</p>
         <button type="button" id="sign-toggle-btn" class="btn btn-large" disabled>Loading...</button>
+        <button type="button" id="off-toggle-btn" class="btn btn-auto btn-off" hidden>OFF</button>
         <p class="error-message" id="sign-message"></p>
       </div>
       <div class="card">
@@ -74,6 +75,7 @@ async function renderDriverView(container, profile) {
   `;
 
   document.getElementById("sign-toggle-btn").addEventListener("click", () => handleSignToggle(profile));
+  document.getElementById("off-toggle-btn").addEventListener("click", () => handleOffToggle(profile));
 
   await loadDriverData(profile);
 }
@@ -110,21 +112,58 @@ function renderSignToggle(sessions) {
   const openSession = sessions.find((s) => !s.sign_out_at);
   const statusValueEl = document.getElementById("status-value");
   const btn = document.getElementById("sign-toggle-btn");
+  const offBtn = document.getElementById("off-toggle-btn");
 
   if (openSession) {
-    statusValueEl.textContent = `Signed in at ${formatTime(openSession.sign_in_at)}`;
+    statusValueEl.textContent = openSession.is_off
+      ? `OFF (signed in at ${formatTime(openSession.sign_in_at)})`
+      : `Signed in at ${formatTime(openSession.sign_in_at)}`;
     btn.textContent = "Sign Out";
     btn.classList.add("btn-signout");
     btn.dataset.action = "sign-out";
     btn.dataset.sessionId = openSession.id;
+
+    // The OFF toggle only makes sense while there's an open session —
+    // between Sign In and Sign Out.
+    offBtn.hidden = false;
+    offBtn.dataset.sessionId = openSession.id;
+    if (openSession.is_off) {
+      offBtn.textContent = "Back On Duty";
+      offBtn.dataset.setOff = "false";
+    } else {
+      offBtn.textContent = "OFF";
+      offBtn.dataset.setOff = "true";
+    }
   } else {
     statusValueEl.textContent = "Not signed in";
     btn.textContent = "Sign In";
     btn.classList.remove("btn-signout");
     btn.dataset.action = "sign-in";
     btn.dataset.sessionId = "";
+    offBtn.hidden = true;
   }
   btn.disabled = false;
+  offBtn.disabled = false;
+}
+
+async function handleOffToggle(profile) {
+  const offBtn = document.getElementById("off-toggle-btn");
+  const messageEl = document.getElementById("sign-message");
+  messageEl.textContent = "";
+  offBtn.disabled = true;
+
+  const { error } = await supabaseClient
+    .from("work_sessions")
+    .update({ is_off: offBtn.dataset.setOff === "true" })
+    .eq("id", offBtn.dataset.sessionId);
+
+  if (error) {
+    messageEl.textContent = error.message;
+    offBtn.disabled = false;
+    return;
+  }
+
+  await loadDriverData(profile);
 }
 
 function renderTodaySummary(sessions) {
@@ -326,9 +365,10 @@ function renderTodayByDriver(sessions) {
     ? `<ul>${todaySessions
         .map((s) => {
           const name = s.profiles ? s.profiles.full_name : "Unknown";
-          const status = s.sign_out_at
-            ? `Signed out ${formatTime(s.sign_out_at)}`
-            : `Signed in ${formatTime(s.sign_in_at)}`;
+          let status;
+          if (s.sign_out_at) status = `Signed out ${formatTime(s.sign_out_at)}`;
+          else if (s.is_off) status = `<span class="status-pill status-warning">OFF</span>`;
+          else status = `Signed in ${formatTime(s.sign_in_at)}`;
           return `<li><span>${name}</span><span>${status}</span></li>`;
         })
         .join("")}</ul>`
