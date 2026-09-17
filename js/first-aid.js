@@ -6,15 +6,14 @@
 // independent panel per vehicle from a single template — adding a
 // third vehicle later needs no code change here at all.
 //
-// Everyone can view medicines and consume them. Editing an existing
-// medicine (quantity/expiry/etc.) stays at manager level (manager or
-// admin); adding a new medicine or deleting one is admin-only. RLS
-// enforces all of this at the database level regardless of what this
-// page shows — a driver never even sees those buttons, and a manager
-// no longer sees Add/Delete. Consuming calls consume_medicine_action()
-// (see supabase/consume_medicine_rpc.sql), a single atomic database
-// function that checks stock, deducts it, and records the
-// consumption — this page never does that math itself.
+// Everyone can view medicines and consume them. Adding, editing, or
+// deleting a medicine is admin-only — a manager can no longer touch
+// medicines beyond viewing/consuming them. RLS enforces this at the
+// database level regardless of what this page shows — a driver or
+// manager never even sees those buttons. Consuming calls
+// consume_medicine_action() (see supabase/consume_medicine_rpc.sql),
+// a single atomic database function that checks stock, deducts it,
+// and records the consumption — this page never does that math itself.
 // ==========================================================
 
 document.addEventListener("DOMContentLoaded", async () => {
@@ -24,8 +23,7 @@ document.addEventListener("DOMContentLoaded", async () => {
   renderNav(profile);
 
   const container = document.getElementById("first-aid-content");
-  const canEdit = isManagerOrAdmin(profile);
-  const canAddDelete = profile.role === "admin";
+  const canManage = profile.role === "admin";
 
   try {
     const { data: vehicles, error } = await supabaseClient.from("vehicles").select("*").order("make_model");
@@ -36,13 +34,15 @@ document.addEventListener("DOMContentLoaded", async () => {
       return;
     }
 
-    container.innerHTML = vehicles.map((v) => vehiclePanelHtml(v, canEdit, canAddDelete)).join("");
+    container.innerHTML = vehicles.map((v) => vehiclePanelHtml(v, canManage)).join("");
 
     for (const v of vehicles) {
-      if (canAddDelete) wireAddForm(v.id, profile, canEdit, canAddDelete);
-      if (canEdit) wireEditForm(v.id, profile, canEdit, canAddDelete);
-      wireSearch(v.id, profile, canEdit, canAddDelete);
-      await loadMedicines(v.id, profile, canEdit, canAddDelete);
+      if (canManage) {
+        wireAddForm(v.id, profile, canManage);
+        wireEditForm(v.id, profile, canManage);
+      }
+      wireSearch(v.id, profile, canManage);
+      await loadMedicines(v.id, profile, canManage);
       await loadConsumptionHistory(v.id);
     }
   } catch (err) {
@@ -51,15 +51,15 @@ document.addEventListener("DOMContentLoaded", async () => {
   }
 });
 
-function vehiclePanelHtml(vehicle, canEdit, canAddDelete) {
+function vehiclePanelHtml(vehicle, canManage) {
   const id = vehicle.id;
 
   return `
     <section class="vehicle-panel">
       <h3 class="vehicle-panel-title">${vehicle.make_model} — ${vehicle.plate_number}</h3>
 
-      ${canAddDelete ? addMedicineFormHtml(id) : ""}
-      ${canEdit ? editMedicineFormHtml(id) : ""}
+      ${canManage ? addMedicineFormHtml(id) : ""}
+      ${canManage ? editMedicineFormHtml(id) : ""}
 
       <h4 class="section-title">Medicines</h4>
       <div class="field">
@@ -95,7 +95,7 @@ function vehiclePanelHtml(vehicle, canEdit, canAddDelete) {
   `;
 }
 
-// ---------- Add / Edit forms (manager only) ----------
+// ---------- Add / Edit forms (admin only) ----------
 
 function addMedicineFormHtml(vehicleId) {
   return `
@@ -155,7 +155,7 @@ function editMedicineFormHtml(vehicleId) {
   `;
 }
 
-function wireAddForm(vehicleId, profile, canEdit, canAddDelete) {
+function wireAddForm(vehicleId, profile, canManage) {
   const form = document.getElementById(`add-medicine-form-${vehicleId}`);
   form.addEventListener("submit", async (e) => {
     e.preventDefault();
@@ -182,11 +182,11 @@ function wireAddForm(vehicleId, profile, canEdit, canAddDelete) {
 
     form.reset();
     form.closest("details").open = false;
-    await loadMedicines(vehicleId, profile, canEdit, canAddDelete);
+    await loadMedicines(vehicleId, profile, canManage);
   });
 }
 
-function wireEditForm(vehicleId, profile, canEdit, canAddDelete) {
+function wireEditForm(vehicleId, profile, canManage) {
   const form = document.getElementById(`edit-medicine-form-${vehicleId}`);
 
   form.addEventListener("submit", async (e) => {
@@ -211,7 +211,7 @@ function wireEditForm(vehicleId, profile, canEdit, canAddDelete) {
     }
 
     document.getElementById(`edit-medicine-card-${vehicleId}`).hidden = true;
-    await loadMedicines(vehicleId, profile, canEdit, canAddDelete);
+    await loadMedicines(vehicleId, profile, canManage);
   });
 
   document.getElementById(`edit-medicine-cancel-${vehicleId}`).addEventListener("click", () => {
@@ -239,7 +239,7 @@ function openEditForm(vehicleId, medicine) {
 // so this stays fast and simple.
 const medicinesCache = {};
 
-async function loadMedicines(vehicleId, profile, canEdit, canAddDelete) {
+async function loadMedicines(vehicleId, profile, canManage) {
   const { data, error } = await supabaseClient
     .from("medicines")
     .select("*")
@@ -249,16 +249,16 @@ async function loadMedicines(vehicleId, profile, canEdit, canAddDelete) {
   if (error) throw error;
 
   medicinesCache[vehicleId] = data || [];
-  renderMedicinesTable(vehicleId, profile, canEdit, canAddDelete);
+  renderMedicinesTable(vehicleId, profile, canManage);
 }
 
-function wireSearch(vehicleId, profile, canEdit, canAddDelete) {
+function wireSearch(vehicleId, profile, canManage) {
   document.getElementById(`search-${vehicleId}`).addEventListener("input", () => {
-    renderMedicinesTable(vehicleId, profile, canEdit, canAddDelete);
+    renderMedicinesTable(vehicleId, profile, canManage);
   });
 }
 
-function renderMedicinesTable(vehicleId, profile, canEdit, canAddDelete) {
+function renderMedicinesTable(vehicleId, profile, canManage) {
   const searchInput = document.getElementById(`search-${vehicleId}`);
   const searchTerm = (searchInput ? searchInput.value : "").trim().toLowerCase();
 
@@ -284,12 +284,12 @@ function renderMedicinesTable(vehicleId, profile, canEdit, canAddDelete) {
   }
 
   createPaginator(filtered, paginationEl, (pageRows) => {
-    bodyEl.innerHTML = pageRows.map((m) => medicineRowHtml(m, canEdit, canAddDelete)).join("");
-    wireRowActions(vehicleId, pageRows, profile, canEdit, canAddDelete);
+    bodyEl.innerHTML = pageRows.map((m) => medicineRowHtml(m, canManage)).join("");
+    wireRowActions(vehicleId, pageRows, profile, canManage);
   });
 }
 
-function medicineRowHtml(medicine, canEdit, canAddDelete) {
+function medicineRowHtml(medicine, canManage) {
   const expiry = medicine.expiry_date ? expiryBadge(medicine.expiry_date) : `<span class="status-pill">No expiry set</span>`;
   const outOfStock = medicine.quantity <= 0;
 
@@ -298,11 +298,11 @@ function medicineRowHtml(medicine, canEdit, canAddDelete) {
     : `<input type="number" class="qty-input" id="consume-qty-${medicine.id}" min="1" max="${medicine.quantity}" value="1" />
        <button type="button" class="btn-page" data-consume-id="${medicine.id}">Consume</button>`;
 
-  const editAction = canEdit
-    ? `<button type="button" class="btn-page" data-edit-id="${medicine.id}">Edit</button>`
-    : "";
-  const deleteAction = canAddDelete
-    ? `<button type="button" class="btn-delete" data-delete-id="${medicine.id}" title="Delete medicine" aria-label="Delete medicine">✕</button>`
+  const manageActions = canManage
+    ? `
+      <button type="button" class="btn-page" data-edit-id="${medicine.id}">Edit</button>
+      <button type="button" class="btn-delete" data-delete-id="${medicine.id}" title="Delete medicine" aria-label="Delete medicine">✕</button>
+    `
     : "";
 
   return `<tr>
@@ -310,11 +310,11 @@ function medicineRowHtml(medicine, canEdit, canAddDelete) {
     <td data-label="Quantity">${medicine.quantity}</td>
     <td data-label="Expiry">${expiry}</td>
     <td data-label="Description">${medicine.description || "—"}</td>
-    <td data-label="Actions" class="actions-cell">${consumeAction}${editAction}${deleteAction}</td>
+    <td data-label="Actions" class="actions-cell">${consumeAction}${manageActions}</td>
   </tr>`;
 }
 
-function wireRowActions(vehicleId, pageRows, profile, canEdit, canAddDelete) {
+function wireRowActions(vehicleId, pageRows, profile, canManage) {
   const tbody = document.getElementById(`medicines-body-${vehicleId}`);
 
   tbody.querySelectorAll("[data-consume-id]").forEach((btn) => {
@@ -364,43 +364,41 @@ function wireRowActions(vehicleId, pageRows, profile, canEdit, canAddDelete) {
       messageEl.className = "status-pill status-ok";
       messageEl.textContent = `Consumed ${quantityUsed}. Stock: ${quantityBefore} → ${quantityAfter}.`;
 
-      await loadMedicines(vehicleId, profile, canEdit, canAddDelete);
+      await loadMedicines(vehicleId, profile, canManage);
       await loadConsumptionHistory(vehicleId);
     });
   });
 
-  if (canEdit) {
-    tbody.querySelectorAll("[data-edit-id]").forEach((btn) => {
-      btn.addEventListener("click", () => {
-        const medicine = pageRows.find((m) => m.id === btn.dataset.editId);
-        if (medicine) openEditForm(vehicleId, medicine);
-      });
+  if (!canManage) return;
+
+  tbody.querySelectorAll("[data-edit-id]").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const medicine = pageRows.find((m) => m.id === btn.dataset.editId);
+      if (medicine) openEditForm(vehicleId, medicine);
     });
-  }
+  });
 
-  if (canAddDelete) {
-    tbody.querySelectorAll("[data-delete-id]").forEach((btn) => {
-      btn.addEventListener("click", async () => {
-        const medicine = pageRows.find((m) => m.id === btn.dataset.deleteId);
-        if (!confirm(`Delete "${medicine ? medicine.name : "this medicine"}"? This cannot be undone.`)) return;
+  tbody.querySelectorAll("[data-delete-id]").forEach((btn) => {
+    btn.addEventListener("click", async () => {
+      const medicine = pageRows.find((m) => m.id === btn.dataset.deleteId);
+      if (!confirm(`Delete "${medicine ? medicine.name : "this medicine"}"? This cannot be undone.`)) return;
 
-        const { error } = await supabaseClient.from("medicines").delete().eq("id", btn.dataset.deleteId);
+      const { error } = await supabaseClient.from("medicines").delete().eq("id", btn.dataset.deleteId);
 
-        if (error) {
-          alert("Could not delete: " + error.message);
-          return;
-        }
+      if (error) {
+        alert("Could not delete: " + error.message);
+        return;
+      }
 
-        await loadMedicines(vehicleId, profile, canEdit, canAddDelete);
-      });
+      await loadMedicines(vehicleId, profile, canManage);
     });
-  }
+  });
 }
 
 // ---------- Consumption history ----------
 // RLS on medicine_consumptions ("consumption read": user_id = auth.uid()
 // or is_manager()) automatically scopes this to "my own" for a driver
-// and "everyone's" for a manager — same query, no role branching needed.
+// and "everyone's" for a manager/admin — same query, no role branching.
 
 async function loadConsumptionHistory(vehicleId) {
   const { data, error } = await supabaseClient
