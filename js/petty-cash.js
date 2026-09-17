@@ -8,10 +8,13 @@
 // needs no code change here at all.
 //
 // Business rules enforced by the database, not just this page
-// (see supabase/schema.sql and supabase/per_vehicle_petty_cash.sql):
-// a withdrawal larger than that vehicle's current balance is
-// rejected, the transaction time is always server-set, and RLS
-// only lets managers insert refills.
+// (see supabase/schema.sql, supabase/per_vehicle_petty_cash.sql, and
+// supabase/driver_refill_auto_approve.sql): a withdrawal larger than
+// that vehicle's current balance is rejected, the transaction time is
+// always server-set, and everyone can refill — but a manager/admin's
+// refill stays "pending" until a driver confirms it actually arrived,
+// while a driver's own refill is auto-approved immediately since
+// there's no one else who needs to confirm it.
 // ==========================================================
 
 // formatRWF() lives in js/utils.js, shared with the dashboard.
@@ -36,7 +39,6 @@ document.addEventListener("DOMContentLoaded", async () => {
 
 function vehiclePanelHtml(vehicle, profile) {
   const id = vehicle.id;
-  const showRefill = isManagerOrAdmin(profile);
 
   return `
     <section class="vehicle-panel">
@@ -67,7 +69,7 @@ function vehiclePanelHtml(vehicle, profile) {
         </form>
       </details>
 
-      <details class="form-card" ${showRefill ? "" : "hidden"}>
+      <details class="form-card">
         <summary>Refill Petty Cash</summary>
         <form id="refill-form-${id}">
           <div class="field">
@@ -129,34 +131,36 @@ function wireVehiclePanel(vehicle, profile) {
     await loadHistory(id);
   });
 
-  if (isManagerOrAdmin(profile)) {
-    document.getElementById(`refill-form-${id}`).addEventListener("submit", async (e) => {
-      e.preventDefault();
-      const messageEl = document.getElementById(`refill-message-${id}`);
-      messageEl.textContent = "";
+  document.getElementById(`refill-form-${id}`).addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const messageEl = document.getElementById(`refill-message-${id}`);
+    messageEl.textContent = "";
 
-      const amount = Number(document.getElementById(`refill-amount-${id}`).value);
-      const reason = document.getElementById(`refill-reason-${id}`).value.trim();
+    const amount = Number(document.getElementById(`refill-amount-${id}`).value);
+    const reason = document.getElementById(`refill-reason-${id}`).value.trim();
 
-      const { error } = await supabaseClient.from("petty_cash_transactions").insert({
-        user_id: profile.id,
-        vehicle_id: id,
-        type: "refill",
-        amount: amount,
-        reason: reason || null,
-      });
-
-      if (error) {
-        messageEl.textContent = error.message;
-        return;
-      }
-
-      e.target.reset();
-      e.target.closest("details").open = false;
-      await loadHistory(id);
-      await loadPendingRefills(id, profile);
+    // Whether this needs a driver's confirmation before it counts
+    // toward the balance is decided server-side (trg_driver_refill_auto_approve
+    // in supabase/driver_refill_auto_approve.sql), not here.
+    const { error } = await supabaseClient.from("petty_cash_transactions").insert({
+      user_id: profile.id,
+      vehicle_id: id,
+      type: "refill",
+      amount: amount,
+      reason: reason || null,
     });
-  }
+
+    if (error) {
+      messageEl.textContent = error.message;
+      return;
+    }
+
+    e.target.reset();
+    e.target.closest("details").open = false;
+    await loadBalance(id);
+    await loadHistory(id);
+    await loadPendingRefills(id, profile);
+  });
 }
 
 // Refills don't affect the balance until a driver confirms them, so this
