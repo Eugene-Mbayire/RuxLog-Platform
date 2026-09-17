@@ -19,15 +19,20 @@ function renderNav(profile) {
   const links = [
     { href: "dashboard.html", label: "Dashboard" },
     { href: "petty-cash.html", label: "Petty Cash" },
-    { href: "working-hours.html", label: profile.role === "manager" ? "Worked Hours" : "Check IN/OUT" },
+    { href: "working-hours.html", label: isManagerOrAdmin(profile) ? "Worked Hours" : "Check IN/OUT" },
     { href: "cars.html", label: "Vehicles" },
     { href: "first-aid.html", label: "First-Aid-Kit" },
     { href: "schedule.html", label: "Schedule" },
   ];
 
-  if (profile.role === "manager") {
+  // Admin gets every manager link plus Users (moved off manager) and
+  // the new Logs page — both admin-only.
+  if (isManagerOrAdmin(profile)) {
     links.push({ href: "analytics.html", label: "Analytics" });
+  }
+  if (profile.role === "admin") {
     links.push({ href: "users.html", label: "Users" });
+    links.push({ href: "logs.html", label: "Logs" });
   }
 
   const currentPage = window.location.pathname.split("/").pop();

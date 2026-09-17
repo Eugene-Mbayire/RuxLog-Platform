@@ -3,9 +3,9 @@
 //
 // Each vehicle is a collapsed panel by default (click to expand —
 // same <details> pattern used on Petty Cash) showing its photo,
-// specifications, and documents. Only a manager sees the edit form;
-// RLS enforces the same restriction at the database level regardless
-// of what this page shows.
+// specifications, and documents. Only an admin sees the edit form
+// (a plain manager no longer can) — RLS enforces the same restriction
+// at the database level regardless of what this page shows.
 // ==========================================================
 
 const DOCUMENT_TYPES = [
@@ -109,7 +109,7 @@ function vehiclePanelHtml(vehicle, docs, profile) {
       <h4 class="section-title">Documents</h4>
       ${documentsToHtml(docs)}
 
-      ${profile.role === "manager" ? editFormHtml(vehicle, docs) : ""}
+      ${profile.role === "admin" ? editFormHtml(vehicle, docs) : ""}
     </details>
   `;
 }
@@ -163,7 +163,8 @@ function editFormHtml(vehicle, docs) {
 }
 
 function wireVehiclePanel(vehicle, docs, profile, container) {
-  if (profile.role !== "manager") return;
+  // Vehicle editing is admin-only (managers used to have this, no longer do)
+  if (profile.role !== "admin") return;
 
   const id = vehicle.id;
   const form = document.getElementById(`edit-form-${id}`);

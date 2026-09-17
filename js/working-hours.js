@@ -15,14 +15,14 @@ document.addEventListener("DOMContentLoaded", async () => {
 
   renderNav(profile);
 
-  const pageTitle = profile.role === "manager" ? "Worked Hours" : "Check IN/OUT";
+  const pageTitle = isManagerOrAdmin(profile) ? "Worked Hours" : "Check IN/OUT";
   document.getElementById("page-heading").textContent = pageTitle;
   document.title = `RuxLog - ${pageTitle}`;
 
   const container = document.getElementById("working-hours-content");
 
   try {
-    if (profile.role === "manager") {
+    if (isManagerOrAdmin(profile)) {
       await renderManagerView(container);
     } else {
       await renderDriverView(container, profile);

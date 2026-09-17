@@ -22,9 +22,9 @@ document.addEventListener("DOMContentLoaded", async () => {
   const profile = await requireAuth();
   if (!profile) return;
 
-  // This page is manager-only — a driver is sent straight back to
-  // their dashboard rather than seeing a broken/empty page.
-  if (profile.role !== "manager") {
+  // This page is manager/admin only — a driver is sent straight back
+  // to their dashboard rather than seeing a broken/empty page.
+  if (!isManagerOrAdmin(profile)) {
     window.location.href = "dashboard.html";
     return;
   }

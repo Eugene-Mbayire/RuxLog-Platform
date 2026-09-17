@@ -36,7 +36,7 @@ document.addEventListener("DOMContentLoaded", async () => {
 
 function vehiclePanelHtml(vehicle, profile) {
   const id = vehicle.id;
-  const showRefill = profile.role === "manager";
+  const showRefill = isManagerOrAdmin(profile);
 
   return `
     <section class="vehicle-panel">
@@ -129,7 +129,7 @@ function wireVehiclePanel(vehicle, profile) {
     await loadHistory(id);
   });
 
-  if (profile.role === "manager") {
+  if (isManagerOrAdmin(profile)) {
     document.getElementById(`refill-form-${id}`).addEventListener("submit", async (e) => {
       e.preventDefault();
       const messageEl = document.getElementById(`refill-message-${id}`);

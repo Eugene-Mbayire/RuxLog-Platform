@@ -36,7 +36,7 @@ document.addEventListener("DOMContentLoaded", async () => {
   // If any of the data queries below fail, show the real error on the page
   // itself instead of leaving the cards silently blank.
   try {
-    if (profile.role === "manager") {
+    if (isManagerOrAdmin(profile)) {
       await renderManagerDashboard();
     } else {
       await renderDriverDashboard(profile);

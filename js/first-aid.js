@@ -6,11 +6,13 @@
 // independent panel per vehicle from a single template — adding a
 // third vehicle later needs no code change here at all.
 //
-// Everyone can view medicines and consume them; only a manager can
-// add, edit, or delete a medicine — RLS enforces that at the database
-// level regardless of what this page shows, a driver never even sees
-// those buttons. Consuming calls consume_medicine_action() (see
-// supabase/consume_medicine_rpc.sql), a single atomic database
+// Everyone can view medicines and consume them. Editing an existing
+// medicine (quantity/expiry/etc.) stays at manager level (manager or
+// admin); adding a new medicine or deleting one is admin-only. RLS
+// enforces all of this at the database level regardless of what this
+// page shows — a driver never even sees those buttons, and a manager
+// no longer sees Add/Delete. Consuming calls consume_medicine_action()
+// (see supabase/consume_medicine_rpc.sql), a single atomic database
 // function that checks stock, deducts it, and records the
 // consumption — this page never does that math itself.
 // ==========================================================
@@ -22,7 +24,8 @@ document.addEventListener("DOMContentLoaded", async () => {
   renderNav(profile);
 
   const container = document.getElementById("first-aid-content");
-  const isManager = profile.role === "manager";
+  const canEdit = isManagerOrAdmin(profile);
+  const canAddDelete = profile.role === "admin";
 
   try {
     const { data: vehicles, error } = await supabaseClient.from("vehicles").select("*").order("make_model");
@@ -33,14 +36,13 @@ document.addEventListener("DOMContentLoaded", async () => {
       return;
     }
 
-    container.innerHTML = vehicles.map((v) => vehiclePanelHtml(v, isManager)).join("");
+    container.innerHTML = vehicles.map((v) => vehiclePanelHtml(v, canEdit, canAddDelete)).join("");
 
     for (const v of vehicles) {
-      if (isManager) {
-        wireAddForm(v.id, profile, isManager);
-        wireEditForm(v.id, profile, isManager);
-      }
-      await loadMedicines(v.id, profile, isManager);
+      if (canAddDelete) wireAddForm(v.id, profile, canEdit, canAddDelete);
+      if (canEdit) wireEditForm(v.id, profile, canEdit, canAddDelete);
+      wireSearch(v.id, profile, canEdit, canAddDelete);
+      await loadMedicines(v.id, profile, canEdit, canAddDelete);
       await loadConsumptionHistory(v.id);
     }
   } catch (err) {
@@ -49,17 +51,21 @@ document.addEventListener("DOMContentLoaded", async () => {
   }
 });
 
-function vehiclePanelHtml(vehicle, isManager) {
+function vehiclePanelHtml(vehicle, canEdit, canAddDelete) {
   const id = vehicle.id;
 
   return `
     <section class="vehicle-panel">
       <h3 class="vehicle-panel-title">${vehicle.make_model} — ${vehicle.plate_number}</h3>
 
-      ${isManager ? addMedicineFormHtml(id) : ""}
-      ${isManager ? editMedicineFormHtml(id) : ""}
+      ${canAddDelete ? addMedicineFormHtml(id) : ""}
+      ${canEdit ? editMedicineFormHtml(id) : ""}
 
       <h4 class="section-title">Medicines</h4>
+      <div class="field">
+        <label for="search-${id}">Search medicines</label>
+        <input type="text" id="search-${id}" placeholder="Search by name..." />
+      </div>
       <p class="error-message" id="consume-message-${id}"></p>
       <div class="table-responsive">
         <table class="data-table">
@@ -149,7 +155,7 @@ function editMedicineFormHtml(vehicleId) {
   `;
 }
 
-function wireAddForm(vehicleId, profile, isManager) {
+function wireAddForm(vehicleId, profile, canEdit, canAddDelete) {
   const form = document.getElementById(`add-medicine-form-${vehicleId}`);
   form.addEventListener("submit", async (e) => {
     e.preventDefault();
@@ -176,11 +182,11 @@ function wireAddForm(vehicleId, profile, isManager) {
 
     form.reset();
     form.closest("details").open = false;
-    await loadMedicines(vehicleId, profile, isManager);
+    await loadMedicines(vehicleId, profile, canEdit, canAddDelete);
   });
 }
 
-function wireEditForm(vehicleId, profile, isManager) {
+function wireEditForm(vehicleId, profile, canEdit, canAddDelete) {
   const form = document.getElementById(`edit-medicine-form-${vehicleId}`);
 
   form.addEventListener("submit", async (e) => {
@@ -205,7 +211,7 @@ function wireEditForm(vehicleId, profile, isManager) {
     }
 
     document.getElementById(`edit-medicine-card-${vehicleId}`).hidden = true;
-    await loadMedicines(vehicleId, profile, isManager);
+    await loadMedicines(vehicleId, profile, canEdit, canAddDelete);
   });
 
   document.getElementById(`edit-medicine-cancel-${vehicleId}`).addEventListener("click", () => {
@@ -227,7 +233,13 @@ function openEditForm(vehicleId, medicine) {
 
 // ---------- Medicines table ----------
 
-async function loadMedicines(vehicleId, profile, isManager) {
+// Full unfiltered list per vehicle, kept in memory so the search box
+// can filter instantly without re-querying the database on every
+// keystroke — the meds list is small-scale (family-business size),
+// so this stays fast and simple.
+const medicinesCache = {};
+
+async function loadMedicines(vehicleId, profile, canEdit, canAddDelete) {
   const { data, error } = await supabaseClient
     .from("medicines")
     .select("*")
@@ -236,22 +248,48 @@ async function loadMedicines(vehicleId, profile, isManager) {
 
   if (error) throw error;
 
+  medicinesCache[vehicleId] = data || [];
+  renderMedicinesTable(vehicleId, profile, canEdit, canAddDelete);
+}
+
+function wireSearch(vehicleId, profile, canEdit, canAddDelete) {
+  document.getElementById(`search-${vehicleId}`).addEventListener("input", () => {
+    renderMedicinesTable(vehicleId, profile, canEdit, canAddDelete);
+  });
+}
+
+function renderMedicinesTable(vehicleId, profile, canEdit, canAddDelete) {
+  const searchInput = document.getElementById(`search-${vehicleId}`);
+  const searchTerm = (searchInput ? searchInput.value : "").trim().toLowerCase();
+
+  const allMedicines = medicinesCache[vehicleId] || [];
+  const filtered = searchTerm
+    ? allMedicines.filter((m) => m.name.toLowerCase().includes(searchTerm))
+    : allMedicines;
+
   const bodyEl = document.getElementById(`medicines-body-${vehicleId}`);
   const paginationEl = document.getElementById(`medicines-pagination-${vehicleId}`);
+  const columnCount = 5; // Name, Quantity, Expiry, Description, Actions — always 5
 
-  if (!data || data.length === 0) {
-    bodyEl.innerHTML = `<tr><td colspan="5">No medicines yet.</td></tr>`;
+  if (allMedicines.length === 0) {
+    bodyEl.innerHTML = `<tr><td colspan="${columnCount}">No medicines yet.</td></tr>`;
     paginationEl.innerHTML = "";
     return;
   }
 
-  createPaginator(data, paginationEl, (pageRows) => {
-    bodyEl.innerHTML = pageRows.map((m) => medicineRowHtml(m, isManager)).join("");
-    wireRowActions(vehicleId, pageRows, profile, isManager);
+  if (filtered.length === 0) {
+    bodyEl.innerHTML = `<tr><td colspan="${columnCount}">No medicines match "${searchInput.value}".</td></tr>`;
+    paginationEl.innerHTML = "";
+    return;
+  }
+
+  createPaginator(filtered, paginationEl, (pageRows) => {
+    bodyEl.innerHTML = pageRows.map((m) => medicineRowHtml(m, canEdit, canAddDelete)).join("");
+    wireRowActions(vehicleId, pageRows, profile, canEdit, canAddDelete);
   });
 }
 
-function medicineRowHtml(medicine, isManager) {
+function medicineRowHtml(medicine, canEdit, canAddDelete) {
   const expiry = medicine.expiry_date ? expiryBadge(medicine.expiry_date) : `<span class="status-pill">No expiry set</span>`;
   const outOfStock = medicine.quantity <= 0;
 
@@ -260,11 +298,11 @@ function medicineRowHtml(medicine, isManager) {
     : `<input type="number" class="qty-input" id="consume-qty-${medicine.id}" min="1" max="${medicine.quantity}" value="1" />
        <button type="button" class="btn-page" data-consume-id="${medicine.id}">Consume</button>`;
 
-  const managerActions = isManager
-    ? `
-      <button type="button" class="btn-page" data-edit-id="${medicine.id}">Edit</button>
-      <button type="button" class="btn-delete" data-delete-id="${medicine.id}" title="Delete medicine" aria-label="Delete medicine">✕</button>
-    `
+  const editAction = canEdit
+    ? `<button type="button" class="btn-page" data-edit-id="${medicine.id}">Edit</button>`
+    : "";
+  const deleteAction = canAddDelete
+    ? `<button type="button" class="btn-delete" data-delete-id="${medicine.id}" title="Delete medicine" aria-label="Delete medicine">✕</button>`
     : "";
 
   return `<tr>
@@ -272,11 +310,11 @@ function medicineRowHtml(medicine, isManager) {
     <td data-label="Quantity">${medicine.quantity}</td>
     <td data-label="Expiry">${expiry}</td>
     <td data-label="Description">${medicine.description || "—"}</td>
-    <td data-label="Actions" class="actions-cell">${consumeAction}${managerActions}</td>
+    <td data-label="Actions" class="actions-cell">${consumeAction}${editAction}${deleteAction}</td>
   </tr>`;
 }
 
-function wireRowActions(vehicleId, pageRows, profile, isManager) {
+function wireRowActions(vehicleId, pageRows, profile, canEdit, canAddDelete) {
   const tbody = document.getElementById(`medicines-body-${vehicleId}`);
 
   tbody.querySelectorAll("[data-consume-id]").forEach((btn) => {
@@ -326,35 +364,37 @@ function wireRowActions(vehicleId, pageRows, profile, isManager) {
       messageEl.className = "status-pill status-ok";
       messageEl.textContent = `Consumed ${quantityUsed}. Stock: ${quantityBefore} → ${quantityAfter}.`;
 
-      await loadMedicines(vehicleId, profile, isManager);
+      await loadMedicines(vehicleId, profile, canEdit, canAddDelete);
       await loadConsumptionHistory(vehicleId);
     });
   });
 
-  if (!isManager) return;
-
-  tbody.querySelectorAll("[data-edit-id]").forEach((btn) => {
-    btn.addEventListener("click", () => {
-      const medicine = pageRows.find((m) => m.id === btn.dataset.editId);
-      if (medicine) openEditForm(vehicleId, medicine);
+  if (canEdit) {
+    tbody.querySelectorAll("[data-edit-id]").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        const medicine = pageRows.find((m) => m.id === btn.dataset.editId);
+        if (medicine) openEditForm(vehicleId, medicine);
+      });
     });
-  });
+  }
 
-  tbody.querySelectorAll("[data-delete-id]").forEach((btn) => {
-    btn.addEventListener("click", async () => {
-      const medicine = pageRows.find((m) => m.id === btn.dataset.deleteId);
-      if (!confirm(`Delete "${medicine ? medicine.name : "this medicine"}"? This cannot be undone.`)) return;
+  if (canAddDelete) {
+    tbody.querySelectorAll("[data-delete-id]").forEach((btn) => {
+      btn.addEventListener("click", async () => {
+        const medicine = pageRows.find((m) => m.id === btn.dataset.deleteId);
+        if (!confirm(`Delete "${medicine ? medicine.name : "this medicine"}"? This cannot be undone.`)) return;
 
-      const { error } = await supabaseClient.from("medicines").delete().eq("id", btn.dataset.deleteId);
+        const { error } = await supabaseClient.from("medicines").delete().eq("id", btn.dataset.deleteId);
 
-      if (error) {
-        alert("Could not delete: " + error.message);
-        return;
-      }
+        if (error) {
+          alert("Could not delete: " + error.message);
+          return;
+        }
 
-      await loadMedicines(vehicleId, profile, isManager);
+        await loadMedicines(vehicleId, profile, canEdit, canAddDelete);
+      });
     });
-  });
+  }
 }
 
 // ---------- Consumption history ----------

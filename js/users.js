@@ -1,5 +1,5 @@
 // ==========================================================
-// RuxLog Platform — Users (manager only)
+// RuxLog Platform — Users (admin only)
 //
 // Creating a new login (email + password), deleting an account, or
 // resetting a password can only be done from the Supabase Dashboard —
@@ -19,9 +19,10 @@ document.addEventListener("DOMContentLoaded", async () => {
   const profile = await requireAuth();
   if (!profile) return;
 
-  // This page is manager-only — a driver is sent straight back to
-  // their dashboard rather than seeing a broken/empty page.
-  if (profile.role !== "manager") {
+  // This page is admin-only now (moved off manager) — anyone else is
+  // sent straight back to their dashboard rather than seeing a
+  // broken/empty page.
+  if (profile.role !== "admin") {
     window.location.href = "dashboard.html";
     return;
   }
@@ -60,6 +61,7 @@ function scaffoldHtml() {
           <select id="edit-user-role">
             <option value="driver">Driver</option>
             <option value="manager">Manager</option>
+            <option value="admin">Admin</option>
           </select>
         </div>
         <div class="field">
@@ -125,8 +127,10 @@ function userCardHtml(user) {
     ? `<img src="${user.photo_path}" alt="${user.full_name}" class="profile-card-photo" />`
     : `<div class="profile-card-photo-placeholder">${initial}</div>`;
 
-  const roleLabel = user.role === "manager" ? "Manager" : "Driver";
-  const rolePillClass = user.role === "manager" ? "status-ok" : "status-warning";
+  const ROLE_LABELS = { admin: "Admin", manager: "Manager", driver: "Driver" };
+  const ROLE_PILL_CLASSES = { admin: "status-danger", manager: "status-ok", driver: "status-warning" };
+  const roleLabel = ROLE_LABELS[user.role] || user.role;
+  const rolePillClass = ROLE_PILL_CLASSES[user.role] || "";
 
   const licenseHtml =
     user.role === "driver"

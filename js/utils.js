@@ -9,6 +9,14 @@
 const DAILY_EXPECTED_HOURS = 8;
 const WEEKLY_EXPECTED_HOURS = 40;
 
+// Admin has every manager privilege plus more (see supabase/admin_role.sql,
+// where is_manager() itself means "manager or admin" at the database
+// level) — this is the frontend equivalent, used everywhere a page
+// used to check profile.role === "manager" to grant manager-level access.
+function isManagerOrAdmin(profile) {
+  return profile.role === "manager" || profile.role === "admin";
+}
+
 function formatRWF(amount) {
   return new Intl.NumberFormat("en-RW", { maximumFractionDigits: 0 }).format(amount || 0) + " RWF";
 }

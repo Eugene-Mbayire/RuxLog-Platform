@@ -15,11 +15,27 @@ async function login(email, password) {
   if (error) {
     return { success: false, message: error.message };
   }
+
+  // Best-effort: user_id and the timestamp are set server-side by a
+  // trigger regardless of what's sent (see supabase/admin_role.sql).
+  // A failure here should never block an otherwise-successful login.
+  supabaseClient
+    .from("login_logs")
+    .insert({ event_type: "login" })
+    .then(({ error: logError }) => {
+      if (logError) console.warn("Could not record login log:", logError.message);
+    });
+
   return { success: true };
 }
 
 // Log the current user out and send them back to the login page.
 async function logout() {
+  // Must happen before signOut() — once signed out, auth.uid() is no
+  // longer available for the log row's RLS check.
+  const { error: logError } = await supabaseClient.from("login_logs").insert({ event_type: "logout" });
+  if (logError) console.warn("Could not record logout log:", logError.message);
+
   await supabaseClient.auth.signOut();
   window.location.href = "index.html";
 }

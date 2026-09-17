@@ -646,14 +646,17 @@ fieldset legend {
 }
 
 /* Styled to match the dark, hand-written-note look of the paper/notes
-   app schedule this replaces — this is exactly what gets downloaded. */
+   app schedule this replaces — this is exactly what gets downloaded.
+   Header, time, and description each get their own color for a more
+   polished, "printed" feel instead of everything being plain white. */
 .schedule-card {
   background: #2b2b28;
-  color: #fff;
+  color: #e8e6df;
   border-radius: 12px;
   padding: 32px;
   max-width: 420px;
   margin: 0 auto 16px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.25);
 }
 
 .schedule-card h2 {
@@ -663,35 +666,44 @@ fieldset legend {
   margin: 0 0 12px;
   font-size: 1.3rem;
   letter-spacing: 0.02em;
-  color: #fff;
+  color: #f4b942;
 }
 
 .schedule-divider {
   border: none;
-  border-top: 2px dashed rgba(255, 255, 255, 0.4);
+  border-top: 2px dashed rgba(255, 255, 255, 0.3);
   margin: 0 0 20px;
 }
 
 .schedule-entry {
-  margin: 0 0 18px;
+  margin: 0 0 16px;
+  padding-left: 12px;
+  border-left: 3px solid #5ec8f2;
   font-size: 1rem;
   line-height: 1.4;
 }
 
 .schedule-entry .entry-time {
   font-weight: 800;
+  color: #5ec8f2;
 }
 
 .schedule-entry .entry-desc {
   font-style: italic;
+  color: #e8e6df;
 }
 
 .schedule-watermark {
   margin: 24px 0 0;
   text-align: right;
   font-size: 0.75rem;
-  opacity: 0.6;
+  color: rgba(232, 230, 223, 0.55);
   letter-spacing: 0.05em;
+}
+
+.schedule-watermark-brand {
+  color: #f4b942;
+  font-weight: 700;
 }
 
 .schedule-entry-completed {
