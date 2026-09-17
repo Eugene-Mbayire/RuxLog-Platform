@@ -26,6 +26,11 @@ function formatTime(isoString) {
   return new Date(isoString).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
 }
 
+function formatEntryTime(timeStr) {
+  // Postgres "time" values come back as "HH:MM:SS"
+  return timeStr.slice(0, 5);
+}
+
 function formatDate(isoString) {
   return new Date(isoString).toLocaleDateString(undefined, { year: "numeric", month: "short", day: "numeric" });
 }

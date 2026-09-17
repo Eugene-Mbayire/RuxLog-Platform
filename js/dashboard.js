@@ -33,6 +33,12 @@ document.addEventListener("DOMContentLoaded", async () => {
     img.hidden = false;
   }
 
+  try {
+    await renderDashboardSchedulePreview(document.getElementById("dashboard-schedule-container"));
+  } catch (err) {
+    console.error("Schedule preview failed to load:", err);
+  }
+
   // If any of the data queries below fail, show the real error on the page
   // itself instead of leaving the cards silently blank.
   try {
@@ -55,19 +61,17 @@ async function renderDriverDashboard(profile) {
 
   const todayStr = toDateString(new Date());
 
-  const [{ data: balances }, { data: sessions }, { data: vehicles }, { data: weeklyRecords }, { data: offMarks }] =
-    await Promise.all([
-      supabaseClient.from("petty_cash_balance").select("*"),
-      supabaseClient
-        .from("work_sessions_view")
-        .select("*")
-        .eq("driver_id", profile.id)
-        .order("sign_in_at", { ascending: false })
-        .limit(30),
-      supabaseClient.from("vehicles").select("*"),
-      supabaseClient.from("weekly_work_hours").select("worked_hours").eq("driver_id", profile.id),
-      supabaseClient.from("driver_day_off").select("day").eq("driver_id", profile.id).eq("day", todayStr),
-    ]);
+  const [{ data: balances }, { data: sessions }, { data: weeklyRecords }, { data: offMarks }] = await Promise.all([
+    supabaseClient.from("petty_cash_balance").select("*"),
+    supabaseClient
+      .from("work_sessions_view")
+      .select("*")
+      .eq("driver_id", profile.id)
+      .order("sign_in_at", { ascending: false })
+      .limit(30),
+    supabaseClient.from("weekly_work_hours").select("worked_hours").eq("driver_id", profile.id),
+    supabaseClient.from("driver_day_off").select("day").eq("driver_id", profile.id).eq("day", todayStr),
+  ]);
 
   const today = new Date();
   const todaySession = (sessions || []).find((s) => isSameDay(new Date(s.sign_in_at), today));
@@ -102,10 +106,6 @@ async function renderDriverDashboard(profile) {
     `;
   }
 
-  const vehiclesHtml = (vehicles || []).length
-    ? `<ul>${vehicles.map((v) => `<li><span>${v.make_model}</span><span>${v.plate_number}</span></li>`).join("")}</ul>`
-    : `<p class="empty-note">No vehicles yet.</p>`;
-
   const balancesHtml = (balances || []).length
     ? `<ul>${balances
         .map((b) => `<li><span>${b.make_model}</span><span>${formatRWF(b.current_balance)}</span></li>`)
@@ -124,7 +124,6 @@ async function renderDriverDashboard(profile) {
       `<p class="big-value">${weeklyHours.toFixed(1)} / ${WEEKLY_EXPECTED_HOURS} hrs</p>${weeklyStatusBadge(weeklyHours, true)}`
     ),
     card("Total Hours Owed / Extra", totalHoursStatusBadge(totalDiff, true)),
-    card("Company Vehicles", vehiclesHtml),
   ].join("");
 }
 

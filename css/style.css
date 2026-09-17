@@ -613,13 +613,6 @@ fieldset legend {
   font-family: inherit;
 }
 
-.schedule-layout {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 24px;
-  align-items: start;
-}
-
 .schedule-entry-list {
   list-style: none;
   margin: 0;
@@ -640,16 +633,22 @@ fieldset legend {
   flex-wrap: wrap;
 }
 
+.dashboard-schedule-title {
+  text-align: center;
+}
+
 .schedule-preview-panel {
-  position: sticky;
-  top: 16px;
+  margin-bottom: 16px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
 }
 
 /* Branded, "printed certificate" look for the generated schedule —
    deep RuxLog navy, gold for the title, cool cyan for times, and a
-   dedicated display font (Poppins, loaded in schedule.html) so the
-   downloaded/shared image reads as genuinely professional rather than
-   a plain screenshot. This is exactly what gets captured for export. */
+   dedicated display font (Poppins, loaded in dashboard.html) so the
+   shared image reads as genuinely professional rather than a plain
+   screenshot. This is exactly what gets captured for export. */
 .schedule-card {
   background: linear-gradient(165deg, #16283f 0%, #0f1d30 100%);
   color: #dce4f0;
@@ -820,14 +819,6 @@ fieldset legend {
    just tighten up spacing and touch targets on small screens.
    ========================================================== */
 @media (max-width: 640px) {
-  .schedule-layout {
-    grid-template-columns: 1fr;
-  }
-
-  .schedule-preview-panel {
-    position: static;
-  }
-
   .page-content {
     padding: 16px;
   }

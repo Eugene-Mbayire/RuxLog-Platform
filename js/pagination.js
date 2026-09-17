@@ -31,12 +31,16 @@ function createPaginator(allRows, controlsEl, renderRows) {
       return;
     }
     controlsEl.innerHTML = `
-      <button type="button" class="btn-page" id="prev-page" ${currentPage === 1 ? "disabled" : ""}>Previous</button>
+      <button type="button" class="btn-page" data-prev ${currentPage === 1 ? "disabled" : ""}>Previous</button>
       <span>Page ${currentPage} of ${totalPages}</span>
-      <button type="button" class="btn-page" id="next-page" ${currentPage === totalPages ? "disabled" : ""}>Next</button>
+      <button type="button" class="btn-page" data-next ${currentPage === totalPages ? "disabled" : ""}>Next</button>
     `;
-    document.getElementById("prev-page")?.addEventListener("click", () => showPage(currentPage - 1));
-    document.getElementById("next-page")?.addEventListener("click", () => showPage(currentPage + 1));
+    // Scoped to this paginator's own controlsEl (not document-wide) so
+    // multiple paginated tables on the same page — Tang/Titanium petty
+    // cash and first aid, the Weekly Record + All Sessions tables on
+    // Working Hours — never collide with each other's buttons.
+    controlsEl.querySelector("[data-prev]")?.addEventListener("click", () => showPage(currentPage - 1));
+    controlsEl.querySelector("[data-next]")?.addEventListener("click", () => showPage(currentPage + 1));
   }
 
   showPage(1);
