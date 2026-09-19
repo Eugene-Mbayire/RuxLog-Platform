@@ -1,19 +1,26 @@
 // ==========================================================
-// RuxLog Platform — Today's Schedule preview (dashboard widget)
+// RuxLog Platform — Schedule preview (dashboard widget)
 //
-// Read-only mirror of today's generated schedule, shown on every
-// role's dashboard so everyone sees the day plan without visiting
-// the Schedule feature (which still owns all the add/edit/delete
-// functionality). Rasterized into a PNG via html2canvas (loaded
-// from a CDN in dashboard.html) when shared to WhatsApp — there's
-// no reasonable vanilla-JS way to rasterize styled DOM into an image.
+// Read-only mirror of the generated schedule, shown on every role's
+// dashboard so everyone sees the day plan without visiting the
+// Schedule feature (which still owns all the add/edit/delete
+// functionality). Opens on today's schedule, with Previous/Next and
+// a date picker to browse past and future planned days. Rasterized
+// into a PNG via html2canvas (loaded from a CDN in dashboard.html)
+// when shared to WhatsApp — there's no reasonable vanilla-JS way to
+// rasterize styled DOM into an image.
 // ==========================================================
 
-async function renderDashboardSchedulePreview(containerEl) {
-  const dateStr = toDateString(new Date());
+let dashboardScheduleDate = toDateString(new Date());
 
+async function renderDashboardSchedulePreview(containerEl) {
   containerEl.innerHTML = `
     <div class="schedule-preview-panel">
+      <div class="schedule-toolbar">
+        <button type="button" id="dash-schedule-prev-btn" class="btn-page">&#9664; Previous</button>
+        <input type="date" id="dash-schedule-date-input" />
+        <button type="button" id="dash-schedule-next-btn" class="btn-page">Next &#9654;</button>
+      </div>
       <div class="schedule-card" id="schedule-preview">
         <h2 id="preview-title">SCHEDULE</h2>
         <hr class="schedule-divider" />
@@ -24,19 +31,42 @@ async function renderDashboardSchedulePreview(containerEl) {
     </div>
   `;
 
+  document.getElementById("dash-schedule-date-input").value = dashboardScheduleDate;
+  document.getElementById("dash-schedule-prev-btn").addEventListener("click", () => changeDashboardScheduleDate(-1));
+  document.getElementById("dash-schedule-next-btn").addEventListener("click", () => changeDashboardScheduleDate(1));
+  document.getElementById("dash-schedule-date-input").addEventListener("change", (e) => {
+    dashboardScheduleDate = e.target.value;
+    loadDashboardSchedule();
+  });
+  document.getElementById("share-whatsapp-btn").addEventListener("click", () => handleShareWhatsApp(dashboardScheduleDate));
+
+  await loadDashboardSchedule();
+}
+
+function changeDashboardScheduleDate(deltaDays) {
+  const d = new Date(dashboardScheduleDate + "T00:00:00");
+  d.setDate(d.getDate() + deltaDays);
+  dashboardScheduleDate = toDateString(d);
+  document.getElementById("dash-schedule-date-input").value = dashboardScheduleDate;
+  loadDashboardSchedule();
+}
+
+async function loadDashboardSchedule() {
   const { data, error } = await supabaseClient
     .from("schedule_entries")
     .select("*")
-    .eq("schedule_date", dateStr)
+    .eq("schedule_date", dashboardScheduleDate)
     .order("entry_time", { ascending: true });
 
+  const titleEl = document.getElementById("dashboard-schedule-title");
+  if (titleEl) titleEl.hidden = dashboardScheduleDate !== toDateString(new Date());
+
   if (error) {
-    containerEl.innerHTML = `<p class="empty-note">Could not load today's schedule: ${error.message}</p>`;
+    document.getElementById("preview-entries").innerHTML = `<p class="empty-note">Could not load schedule: ${error.message}</p>`;
     return;
   }
 
-  renderPreviewCard(dateStr, data || []);
-  document.getElementById("share-whatsapp-btn").addEventListener("click", () => handleShareWhatsApp(dateStr));
+  renderPreviewCard(dashboardScheduleDate, data || []);
 }
 
 function renderPreviewCard(dateStr, entries) {

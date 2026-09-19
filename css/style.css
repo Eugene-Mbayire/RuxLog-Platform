@@ -357,6 +357,37 @@ fieldset legend {
   margin-bottom: 16px;
 }
 
+/* Only the collapsible panels (petty cash, first aid) carry
+   data-panel-toggle — the Vehicles page reuses .vehicle-panel-title
+   but isn't clickable. */
+.vehicle-panel-title[data-panel-toggle] {
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.vehicle-panel-title[data-panel-toggle]:hover span:last-child {
+  text-decoration: underline;
+}
+
+.vehicle-panel-caret {
+  display: inline-block;
+  transition: transform 0.15s ease;
+}
+
+.vehicle-panel.expanded .vehicle-panel-caret {
+  transform: rotate(90deg);
+}
+
+.vehicle-panel-body {
+  display: none;
+}
+
+.vehicle-panel.expanded .vehicle-panel-body {
+  display: block;
+}
+
 /* ---------- Forms on data pages (petty cash, etc.) ---------- */
 .form-card {
   background: var(--ruxlog-surface);
@@ -418,6 +449,56 @@ fieldset legend {
   object-fit: cover;
   border-radius: var(--radius);
   flex-shrink: 0;
+}
+
+/* ---------- Car supplies checklist (Vehicles page) ---------- */
+.supply-list {
+  list-style: none;
+  margin: 0 0 16px;
+  padding: 0;
+}
+
+.supply-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 8px 0;
+  border-bottom: 1px solid var(--ruxlog-border);
+}
+
+.supply-label {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  cursor: pointer;
+}
+
+.supply-checkbox {
+  width: 18px;
+  height: 18px;
+  flex-shrink: 0;
+  cursor: pointer;
+}
+
+.supply-checkbox:disabled {
+  cursor: default;
+}
+
+.supply-add-form {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-bottom: 8px;
+}
+
+.supply-add-form input {
+  flex: 1;
+  min-width: 180px;
+  padding: 8px 12px;
+  border: 1px solid var(--ruxlog-border);
+  border-radius: var(--radius);
+  font-family: inherit;
 }
 
 .vehicle-photo {

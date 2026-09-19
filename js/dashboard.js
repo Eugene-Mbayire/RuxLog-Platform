@@ -42,7 +42,9 @@ document.addEventListener("DOMContentLoaded", async () => {
   // If any of the data queries below fail, show the real error on the page
   // itself instead of leaving the cards silently blank.
   try {
-    if (isManagerOrAdmin(profile)) {
+    if (isHouseStaff(profile)) {
+      await renderHouseStaffDashboard();
+    } else if (isManagerOrAdmin(profile)) {
       await renderManagerDashboard();
     } else {
       await renderDriverDashboard(profile);
@@ -54,6 +56,22 @@ document.addEventListener("DOMContentLoaded", async () => {
   }
 });
 
+// ---------- House staff dashboard ----------
+// Petty cash only. The day's schedule is already rendered above the
+// cards for every role, which is the other half of what they see.
+
+async function renderHouseStaffDashboard() {
+  const { data: balances } = await supabaseClient.from("petty_cash_balance").select("*");
+
+  const balancesHtml = (balances || []).length
+    ? `<ul>${balances
+        .map((b) => `<li><span>${b.make_model}</span><span>${formatRWF(b.current_balance)}</span></li>`)
+        .join("")}</ul>`
+    : `<p class="empty-note">No petty cash pools yet.</p>`;
+
+  document.getElementById("cards-container").innerHTML = card("Petty Cash Balance", balancesHtml);
+}
+
 // ---------- Driver dashboard ----------
 
 async function renderDriverDashboard(profile) {
@@ -61,17 +79,19 @@ async function renderDriverDashboard(profile) {
 
   const todayStr = toDateString(new Date());
 
-  const [{ data: balances }, { data: sessions }, { data: weeklyRecords }, { data: offMarks }] = await Promise.all([
-    supabaseClient.from("petty_cash_balance").select("*"),
-    supabaseClient
-      .from("work_sessions_view")
-      .select("*")
-      .eq("driver_id", profile.id)
-      .order("sign_in_at", { ascending: false })
-      .limit(30),
-    supabaseClient.from("weekly_work_hours").select("worked_hours").eq("driver_id", profile.id),
-    supabaseClient.from("driver_day_off").select("day").eq("driver_id", profile.id).eq("day", todayStr),
-  ]);
+  const [{ data: balances }, { data: sessions }, { data: weeklyRecords }, { data: offMarks }, { data: missingSupplies }] =
+    await Promise.all([
+      supabaseClient.from("petty_cash_balance").select("*"),
+      supabaseClient
+        .from("work_sessions_view")
+        .select("*")
+        .eq("driver_id", profile.id)
+        .order("sign_in_at", { ascending: false })
+        .limit(30),
+      supabaseClient.from("weekly_work_hours").select("worked_hours").eq("driver_id", profile.id),
+      supabaseClient.from("driver_day_off").select("day").eq("driver_id", profile.id).eq("day", todayStr),
+      missingSuppliesQuery(),
+    ]);
 
   const today = new Date();
   const todaySession = (sessions || []).find((s) => isSameDay(new Date(s.sign_in_at), today));
@@ -124,7 +144,39 @@ async function renderDriverDashboard(profile) {
       `<p class="big-value">${weeklyHours.toFixed(1)} / ${WEEKLY_EXPECTED_HOURS} hrs</p>${weeklyStatusBadge(weeklyHours, true)}`
     ),
     card("Total Hours Owed / Extra", totalHoursStatusBadge(totalDiff, true)),
+    card("Car Supplies", missingSuppliesHtml(missingSupplies)),
   ].join("");
+}
+
+// ---------- Car supplies (shown on every role's dashboard) ----------
+// Only the missing ones matter here — anything an admin has unticked
+// on the Vehicles page shows up as a flag, named with the car it
+// belongs to, so nobody has to go looking for it.
+
+function missingSuppliesQuery() {
+  return supabaseClient
+    .from("car_supplies")
+    .select("name, vehicles(make_model)")
+    .eq("is_available", false)
+    .order("created_at");
+}
+
+function missingSuppliesHtml(missingSupplies) {
+  if (!missingSupplies || missingSupplies.length === 0) {
+    return `<p class="empty-note">All cars have every supply.</p>`;
+  }
+
+  return `<ul>${missingSupplies
+    .map((s) => {
+      // "BYD TANG" reads as just "TANG" here — the make is the same on
+      // every car, so it's noise in a list this short.
+      const carName = s.vehicles ? s.vehicles.make_model.replace(/^BYD\s+/i, "") : "Vehicle";
+      return `<li>
+        <span>${carName}: ${s.name}</span>
+        <span class="status-pill status-danger">Missing</span>
+      </li>`;
+    })
+    .join("")}</ul>`;
 }
 
 // ---------- Manager dashboard ----------
@@ -143,6 +195,7 @@ async function renderManagerDashboard() {
     { data: weeklyRecords },
     { data: drivers },
     { data: offMarks },
+    { data: missingSupplies },
   ] = await Promise.all([
     supabaseClient.from("petty_cash_balance").select("*"),
     supabaseClient
@@ -167,6 +220,7 @@ async function renderManagerDashboard() {
     supabaseClient.from("weekly_work_hours").select("driver_id, worked_hours"),
     supabaseClient.from("profiles").select("id, full_name").eq("role", "driver"),
     supabaseClient.from("driver_day_off").select("driver_id").eq("day", todayStr),
+    missingSuppliesQuery(),
   ]);
 
   const today = new Date();
@@ -270,5 +324,6 @@ async function renderManagerDashboard() {
     card("Vehicle Documents Expiring Soon", expiringDocsHtml),
     card("Medicines Expiring Soon", expiringMedsHtml),
     card("Recent Petty Cash Withdrawals", withdrawalsHtml),
+    card("Car Supplies", missingSuppliesHtml(missingSupplies)),
   ].join("");
 }

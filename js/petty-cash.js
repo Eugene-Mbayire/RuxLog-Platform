@@ -15,6 +15,13 @@
 // refill stays "pending" until a driver confirms it actually arrived,
 // while a driver's own refill is auto-approved immediately since
 // there's no one else who needs to confirm it.
+//
+// Admin only: past transactions can be edited or deleted. Editing an
+// amount moves the balance with it (the balance is summed live from
+// these rows), but deleting is a soft delete — the row stops showing
+// in the history while still counting toward the balance, so the
+// balance stays exactly as it was (see
+// supabase/petty_cash_admin_edit_delete.sql).
 // ==========================================================
 
 // formatRWF() lives in js/utils.js, shared with the dashboard.
@@ -35,15 +42,22 @@ document.addEventListener("DOMContentLoaded", async () => {
 
   container.innerHTML = vehicles.map((v) => vehiclePanelHtml(v, profile)).join("");
   vehicles.forEach((v) => wireVehiclePanel(v, profile));
+  wirePanelToggles(container);
 });
 
 function vehiclePanelHtml(vehicle, profile) {
   const id = vehicle.id;
+  const canManage = profile.role === "admin";
 
   return `
     <section class="vehicle-panel">
-      <h3 class="vehicle-panel-title">${vehicle.make_model} — ${vehicle.plate_number}</h3>
+      <h3 class="vehicle-panel-title" data-panel-toggle>
+        <span class="vehicle-panel-caret">&#9656;</span>
+        ${vehicleThumbHtml(vehicle)}
+        <span>${vehicle.make_model} — ${vehicle.plate_number}</span>
+      </h3>
 
+      <div class="vehicle-panel-body">
       <div class="card-grid card-section">
         <div class="card">
           <h3>Current Balance</h3>
@@ -85,6 +99,8 @@ function vehiclePanelHtml(vehicle, profile) {
         </form>
       </details>
 
+      ${canManage ? editTransactionFormHtml(id) : ""}
+
       <h4 class="section-title">Transaction History</h4>
       <div class="table-responsive">
         <table class="data-table">
@@ -93,16 +109,85 @@ function vehiclePanelHtml(vehicle, profile) {
         </table>
       </div>
       <div id="history-pagination-${id}" class="pagination"></div>
+      </div>
     </section>
   `;
+}
+
+// ---------- Edit a past transaction (admin only) ----------
+
+function editTransactionFormHtml(vehicleId) {
+  return `
+    <div class="form-card" id="edit-transaction-card-${vehicleId}" hidden>
+      <h3>Edit Transaction</h3>
+      <form id="edit-transaction-form-${vehicleId}">
+        <input type="hidden" id="edit-transaction-id-${vehicleId}" />
+        <div class="field">
+          <label for="edit-transaction-amount-${vehicleId}">Amount (RWF)</label>
+          <input type="number" id="edit-transaction-amount-${vehicleId}" min="1" step="1" required />
+        </div>
+        <div class="field">
+          <label for="edit-transaction-reason-${vehicleId}">Reason / Note</label>
+          <input type="text" id="edit-transaction-reason-${vehicleId}" />
+        </div>
+        <button type="submit" class="btn btn-auto">Save Changes</button>
+        <button type="button" id="edit-transaction-cancel-${vehicleId}" class="btn btn-auto btn-off">Cancel</button>
+        <p class="error-message" id="edit-transaction-message-${vehicleId}"></p>
+      </form>
+    </div>
+  `;
+}
+
+function wireEditTransactionForm(vehicleId, profile) {
+  const form = document.getElementById(`edit-transaction-form-${vehicleId}`);
+
+  form.addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const messageEl = document.getElementById(`edit-transaction-message-${vehicleId}`);
+    messageEl.textContent = "";
+
+    const transactionId = document.getElementById(`edit-transaction-id-${vehicleId}`).value;
+    const amount = Number(document.getElementById(`edit-transaction-amount-${vehicleId}`).value);
+    const reason = document.getElementById(`edit-transaction-reason-${vehicleId}`).value.trim();
+
+    const { error } = await supabaseClient
+      .from("petty_cash_transactions")
+      .update({ amount: amount, reason: reason || null })
+      .eq("id", transactionId);
+
+    if (error) {
+      messageEl.textContent = error.message;
+      return;
+    }
+
+    document.getElementById(`edit-transaction-card-${vehicleId}`).hidden = true;
+    await loadBalance(vehicleId);
+    await loadHistory(vehicleId, profile);
+  });
+
+  document.getElementById(`edit-transaction-cancel-${vehicleId}`).addEventListener("click", () => {
+    document.getElementById(`edit-transaction-card-${vehicleId}`).hidden = true;
+  });
+}
+
+function openEditTransactionForm(vehicleId, transaction) {
+  document.getElementById(`edit-transaction-id-${vehicleId}`).value = transaction.id;
+  document.getElementById(`edit-transaction-amount-${vehicleId}`).value = transaction.amount;
+  document.getElementById(`edit-transaction-reason-${vehicleId}`).value = transaction.reason || "";
+
+  const card = document.getElementById(`edit-transaction-card-${vehicleId}`);
+  card.hidden = false;
+  card.scrollIntoView({ block: "center" });
 }
 
 function wireVehiclePanel(vehicle, profile) {
   const id = vehicle.id;
 
   loadBalance(id);
-  loadHistory(id);
+  loadHistory(id, profile);
   loadPendingRefills(id, profile);
+
+  if (profile.role === "admin") wireEditTransactionForm(id, profile);
 
   document.getElementById(`withdraw-form-${id}`).addEventListener("submit", async (e) => {
     e.preventDefault();
@@ -128,7 +213,7 @@ function wireVehiclePanel(vehicle, profile) {
     e.target.reset();
     e.target.closest("details").open = false;
     await loadBalance(id);
-    await loadHistory(id);
+    await loadHistory(id, profile);
   });
 
   document.getElementById(`refill-form-${id}`).addEventListener("submit", async (e) => {
@@ -158,7 +243,7 @@ function wireVehiclePanel(vehicle, profile) {
     e.target.reset();
     e.target.closest("details").open = false;
     await loadBalance(id);
-    await loadHistory(id);
+    await loadHistory(id, profile);
     await loadPendingRefills(id, profile);
   });
 }
@@ -175,6 +260,7 @@ async function loadPendingRefills(vehicleId, profile) {
     .eq("vehicle_id", vehicleId)
     .eq("type", "refill")
     .eq("status", "pending")
+    .is("deleted_at", null)
     .order("created_at", { ascending: false });
 
   if (error || !data || data.length === 0) {
@@ -215,7 +301,7 @@ async function loadPendingRefills(vehicleId, profile) {
       }
 
       await loadBalance(vehicleId);
-      await loadHistory(vehicleId);
+      await loadHistory(vehicleId, profile);
       await loadPendingRefills(vehicleId, profile);
     });
   });
@@ -237,26 +323,32 @@ async function loadBalance(vehicleId) {
   el.textContent = formatRWF(data.current_balance);
 }
 
-async function loadHistory(vehicleId) {
-  document.getElementById(`history-head-${vehicleId}`).innerHTML =
-    "<th>Date/Time</th><th>Name</th><th>Amount</th><th>Reason</th>";
+async function loadHistory(vehicleId, profile) {
+  const canManage = profile.role === "admin";
+  const columnCount = canManage ? 5 : 4;
 
+  document.getElementById(`history-head-${vehicleId}`).innerHTML =
+    "<th>Date/Time</th><th>Name</th><th>Amount</th><th>Reason</th>" + (canManage ? "<th>Actions</th>" : "");
+
+  // Deleted records stay in the table (so they keep counting toward the
+  // balance) — they're just filtered out of the history everyone sees.
   const { data, error } = await supabaseClient
     .from("petty_cash_transactions")
     .select("*, profiles!user_id(full_name)")
     .eq("vehicle_id", vehicleId)
+    .is("deleted_at", null)
     .order("created_at", { ascending: false });
 
   const bodyEl = document.getElementById(`history-body-${vehicleId}`);
   const paginationEl = document.getElementById(`history-pagination-${vehicleId}`);
 
   if (error) {
-    bodyEl.innerHTML = `<tr><td colspan="4">Could not load history: ${error.message}</td></tr>`;
+    bodyEl.innerHTML = `<tr><td colspan="${columnCount}">Could not load history: ${error.message}</td></tr>`;
     return;
   }
 
   if (!data || data.length === 0) {
-    bodyEl.innerHTML = `<tr><td colspan="4">No transactions yet.</td></tr>`;
+    bodyEl.innerHTML = `<tr><td colspan="${columnCount}">No transactions yet.</td></tr>`;
     paginationEl.innerHTML = "";
     return;
   }
@@ -265,13 +357,55 @@ async function loadHistory(vehicleId) {
     bodyEl.innerHTML = pageRows
       .map((row) => {
         const dateTime = new Date(row.created_at).toLocaleString();
+        const actions = canManage
+          ? `<td data-label="Actions" class="actions-cell">
+               <button type="button" class="btn-page" data-edit-id="${row.id}">Edit</button>
+               <button type="button" class="btn-delete" data-delete-id="${row.id}" title="Delete record" aria-label="Delete record">✕</button>
+             </td>`
+          : "";
         return `<tr>
           <td data-label="Date/Time">${dateTime}</td>
           <td data-label="Name">${row.profiles ? row.profiles.full_name : "Unknown"}</td>
           <td data-label="Amount">${formatRWF(row.amount)}</td>
           <td data-label="Reason">${row.reason || "—"}</td>
+          ${actions}
         </tr>`;
       })
       .join("");
+
+    if (canManage) wireHistoryRowActions(vehicleId, pageRows, profile);
+  });
+}
+
+function wireHistoryRowActions(vehicleId, pageRows, profile) {
+  const bodyEl = document.getElementById(`history-body-${vehicleId}`);
+
+  bodyEl.querySelectorAll("[data-edit-id]").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const transaction = pageRows.find((r) => r.id === btn.dataset.editId);
+      if (transaction) openEditTransactionForm(vehicleId, transaction);
+    });
+  });
+
+  bodyEl.querySelectorAll("[data-delete-id]").forEach((btn) => {
+    btn.addEventListener("click", async () => {
+      if (!confirm("Delete this record from the history? The balance will stay exactly as it is.")) return;
+
+      // Soft delete — the real timestamp is set server-side by
+      // trg_enforce_petty_cash_delete_time, this value just marks it
+      // as "not null" so the trigger knows a delete was requested.
+      const { error } = await supabaseClient
+        .from("petty_cash_transactions")
+        .update({ deleted_at: new Date().toISOString() })
+        .eq("id", btn.dataset.deleteId);
+
+      if (error) {
+        alert("Could not delete: " + error.message);
+        return;
+      }
+
+      await loadHistory(vehicleId, profile);
+      await loadPendingRefills(vehicleId, profile);
+    });
   });
 }

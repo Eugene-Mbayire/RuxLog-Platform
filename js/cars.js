@@ -31,26 +31,34 @@ document.addEventListener("DOMContentLoaded", async () => {
 });
 
 async function loadVehicles(container, profile) {
-  const [{ data: vehicles, error: vehiclesError }, { data: documents, error: docsError }] = await Promise.all([
+  const [
+    { data: vehicles, error: vehiclesError },
+    { data: documents, error: docsError },
+    { data: supplies, error: suppliesError },
+  ] = await Promise.all([
     supabaseClient.from("vehicles").select("*").order("make_model"),
     supabaseClient.from("vehicle_documents").select("*"),
+    supabaseClient.from("car_supplies").select("*").order("created_at"),
   ]);
 
   if (vehiclesError) throw vehiclesError;
   if (docsError) throw docsError;
+  if (suppliesError) throw suppliesError;
 
   if (!vehicles || vehicles.length === 0) {
     container.innerHTML = `<p class="empty-note">No vehicles yet.</p>`;
     return;
   }
 
-  container.innerHTML = vehicles
-    .map((v) => vehiclePanelHtml(v, (documents || []).filter((d) => d.vehicle_id === v.id), profile))
-    .join("");
+  const docsFor = (v) => (documents || []).filter((d) => d.vehicle_id === v.id);
+  const suppliesFor = (v) => (supplies || []).filter((s) => s.vehicle_id === v.id);
 
-  vehicles.forEach((v) =>
-    wireVehiclePanel(v, (documents || []).filter((d) => d.vehicle_id === v.id), profile, container)
-  );
+  container.innerHTML = vehicles.map((v) => vehiclePanelHtml(v, docsFor(v), suppliesFor(v), profile)).join("");
+
+  vehicles.forEach((v) => {
+    wireVehiclePanel(v, docsFor(v), profile, container);
+    wireSupplies(v, profile, container);
+  });
 }
 
 function specsToHtml(specifications) {
@@ -85,7 +93,120 @@ function documentsToHtml(docs) {
   }).join("")}</ul>`;
 }
 
-function vehiclePanelHtml(vehicle, docs, profile) {
+// ---------- Car supplies checklist ----------
+// A ticked box means the item is actually in that car. Everyone sees
+// the list; drivers and admins can tick/untick (a driver is the one
+// actually in the car), while adding and deleting supplies stays
+// admin-only. RLS enforces the same split at the database level.
+
+function canTickSupplies(profile) {
+  return profile.role === "admin" || profile.role === "driver";
+}
+
+function suppliesToHtml(vehicle, supplies, profile) {
+  const id = vehicle.id;
+  const canManage = profile.role === "admin";
+  const canTick = canTickSupplies(profile);
+
+  const listHtml = supplies.length
+    ? `<ul class="supply-list">${supplies
+        .map(
+          (s) => `<li class="supply-item">
+            <label class="supply-label">
+              <input type="checkbox" class="supply-checkbox" data-supply-id="${s.id}" ${s.is_available ? "checked" : ""} ${
+                canTick ? "" : "disabled"
+              } />
+              <span>${s.name}</span>
+            </label>
+            ${
+              canManage
+                ? `<button type="button" class="btn-delete" data-delete-supply-id="${s.id}" title="Delete supply" aria-label="Delete supply">✕</button>`
+                : ""
+            }
+          </li>`
+        )
+        .join("")}</ul>`
+    : `<p class="empty-note">No supplies listed yet.</p>`;
+
+  const addHtml = canManage
+    ? `<form class="supply-add-form" id="add-supply-form-${id}">
+         <input type="text" id="add-supply-name-${id}" placeholder="New supply name" required />
+         <button type="submit" class="btn-page">Add Supply</button>
+       </form>`
+    : "";
+
+  return `<div id="supplies-${id}">
+    ${listHtml}
+    ${addHtml}
+    <p class="error-message" id="supply-message-${id}"></p>
+  </div>`;
+}
+
+function wireSupplies(vehicle, profile, container) {
+  const id = vehicle.id;
+  const canManage = profile.role === "admin";
+  if (!canTickSupplies(profile) && !canManage) return; // managers get read-only, disabled boxes
+
+  const section = document.getElementById(`supplies-${id}`);
+  const messageEl = document.getElementById(`supply-message-${id}`);
+
+  section.querySelectorAll("[data-supply-id]").forEach((checkbox) => {
+    checkbox.addEventListener("change", async () => {
+      checkbox.disabled = true;
+      messageEl.textContent = "";
+
+      const { error } = await supabaseClient
+        .from("car_supplies")
+        .update({ is_available: checkbox.checked })
+        .eq("id", checkbox.dataset.supplyId);
+
+      checkbox.disabled = false;
+
+      if (error) {
+        checkbox.checked = !checkbox.checked; // put it back — the save didn't happen
+        messageEl.textContent = error.message;
+      }
+    });
+  });
+
+  if (!canManage) return; // ticking is as far as a driver goes
+
+  section.querySelectorAll("[data-delete-supply-id]").forEach((btn) => {
+    btn.addEventListener("click", async () => {
+      if (!confirm("Delete this supply from the checklist?")) return;
+
+      const { error } = await supabaseClient
+        .from("car_supplies")
+        .delete()
+        .eq("id", btn.dataset.deleteSupplyId);
+
+      if (error) {
+        messageEl.textContent = error.message;
+        return;
+      }
+
+      await loadVehicles(container, profile);
+    });
+  });
+
+  document.getElementById(`add-supply-form-${id}`).addEventListener("submit", async (e) => {
+    e.preventDefault();
+    messageEl.textContent = "";
+
+    const name = document.getElementById(`add-supply-name-${id}`).value.trim();
+
+    const { error } = await supabaseClient.from("car_supplies").insert({ vehicle_id: id, name: name });
+
+    if (error) {
+      messageEl.textContent = error.message;
+      return;
+    }
+
+    await loadVehicles(container, profile);
+  });
+}
+
+function vehiclePanelHtml(vehicle, docs, supplies, profile) {
   const id = vehicle.id;
   const photoHtml = vehicle.image_path
     ? `<img src="${vehicle.image_path}" class="vehicle-photo" alt="${vehicle.make_model}" />`
@@ -105,6 +226,9 @@ function vehiclePanelHtml(vehicle, docs, profile) {
 
       <h4 class="section-title">Specifications</h4>
       ${specsToHtml(vehicle.specifications)}
+
+      <h4 class="section-title">Car Supplies</h4>
+      ${suppliesToHtml(vehicle, supplies, profile)}
 
       <h4 class="section-title">Documents</h4>
       ${documentsToHtml(docs)}

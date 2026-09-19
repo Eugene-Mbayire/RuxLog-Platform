@@ -7,11 +7,24 @@
 // database also blocks a second open session and a double sign-out,
 // so even a stale UI (e.g. two tabs open) can't corrupt anything —
 // a conflict just comes back as an error message here.
+//
+// An admin is the one exception: they can correct a session's times
+// afterwards (see supabase/edit_work_session.sql). Worked hours are
+// recomputed from those timestamps rather than stored, so a
+// correction flows through to the week and the owed/extra totals
+// on its own.
 // ==========================================================
 
 document.addEventListener("DOMContentLoaded", async () => {
   const profile = await requireAuth();
   if (!profile) return;
+
+  // House staff don't have tracked hours at all — sent back rather
+  // than shown a Sign In button that would log them as a driver.
+  if (isHouseStaff(profile)) {
+    window.location.href = "dashboard.html";
+    return;
+  }
 
   renderNav(profile);
 
@@ -23,7 +36,7 @@ document.addEventListener("DOMContentLoaded", async () => {
 
   try {
     if (isManagerOrAdmin(profile)) {
-      await renderManagerView(container);
+      await renderManagerView(container, profile);
     } else {
       await renderDriverView(container, profile);
     }
@@ -310,7 +323,9 @@ async function handleSignToggle(profile) {
 
 // ---------- Manager view (read-only overview of every driver) ----------
 
-async function renderManagerView(container) {
+async function renderManagerView(container, profile) {
+  const canEditSessions = profile.role === "admin";
+
   container.innerHTML = `
     <div class="card-grid card-section">
       <div class="card">
@@ -337,15 +352,21 @@ async function renderManagerView(container) {
     </div>
     <div id="weekly-record-pagination" class="pagination"></div>
 
+    ${canEditSessions ? editSessionFormHtml() : ""}
+
     <h3 class="section-title">All Sessions</h3>
     <div class="table-responsive">
       <table class="data-table">
-        <thead><tr><th>Date</th><th>Driver</th><th>Sign In</th><th>Sign Out</th><th>Worked</th><th>Status</th></tr></thead>
+        <thead><tr><th>Date</th><th>Driver</th><th>Sign In</th><th>Sign Out</th><th>Worked</th><th>Status</th>${
+          canEditSessions ? "<th>Actions</th>" : ""
+        }</tr></thead>
         <tbody id="history-body"></tbody>
       </table>
     </div>
     <div id="history-pagination" class="pagination"></div>
   `;
+
+  if (canEditSessions) wireEditSessionForm(container, profile);
 
   const today = toDateString(new Date());
   const [{ data: allSessions, error }, { data: drivers, error: driversError }, { data: offMarks, error: offError }] =
@@ -369,8 +390,88 @@ async function renderManagerView(container) {
 
   renderTodayByDriver(drivers || [], sessions, offMarks || []);
   renderWeekByDriver(sessions);
-  renderManagerHistory(sessions);
+  renderManagerHistory(sessions, canEditSessions);
   await renderWeeklyRecordManager();
+}
+
+// ---------- Editing a session's times (admin only) ----------
+// The hours themselves are never edited directly — they're recomputed
+// from these two timestamps by work_sessions_view and weekly_work_hours,
+// so correcting a time here corrects that session, the driver's week,
+// and their owed/extra total all at once.
+
+function editSessionFormHtml() {
+  return `
+    <div class="form-card" id="edit-session-card" hidden>
+      <h3>Edit Session Times</h3>
+      <form id="edit-session-form">
+        <input type="hidden" id="edit-session-id" />
+        <p class="text-muted" id="edit-session-driver"></p>
+        <div class="field">
+          <label for="edit-session-in">Sign In</label>
+          <input type="datetime-local" id="edit-session-in" required />
+        </div>
+        <div class="field">
+          <label for="edit-session-out">Sign Out (leave empty if still signed in)</label>
+          <input type="datetime-local" id="edit-session-out" />
+        </div>
+        <button type="submit" class="btn btn-auto">Save Changes</button>
+        <button type="button" id="edit-session-cancel" class="btn btn-auto btn-off">Cancel</button>
+        <p class="error-message" id="edit-session-message"></p>
+      </form>
+    </div>
+  `;
+}
+
+// <input type="datetime-local"> wants "YYYY-MM-DDTHH:MM" in local time,
+// so build it from the local parts rather than toISOString(), which
+// would convert to UTC and shift the time by Rwanda's +2 offset.
+function toDateTimeLocal(isoString) {
+  const d = new Date(isoString);
+  const pad = (n) => String(n).padStart(2, "0");
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
+
+function openEditSessionForm(session) {
+  document.getElementById("edit-session-id").value = session.id;
+  document.getElementById("edit-session-in").value = toDateTimeLocal(session.sign_in_at);
+  document.getElementById("edit-session-out").value = session.sign_out_at
+    ? toDateTimeLocal(session.sign_out_at)
+    : "";
+  document.getElementById("edit-session-driver").textContent =
+    `${session.profiles ? session.profiles.full_name : "Driver"} — ${formatDate(session.sign_in_at)}`;
+
+  const card = document.getElementById("edit-session-card");
+  card.hidden = false;
+  card.scrollIntoView({ block: "center" });
+}
+
+function wireEditSessionForm(container, profile) {
+  document.getElementById("edit-session-form").addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const messageEl = document.getElementById("edit-session-message");
+    messageEl.textContent = "";
+
+    const signInValue = document.getElementById("edit-session-in").value;
+    const signOutValue = document.getElementById("edit-session-out").value;
+
+    const { error } = await supabaseClient.rpc("edit_work_session_action", {
+      p_session_id: document.getElementById("edit-session-id").value,
+      p_sign_in_at: new Date(signInValue).toISOString(),
+      p_sign_out_at: signOutValue ? new Date(signOutValue).toISOString() : null,
+    });
+
+    if (error) {
+      messageEl.textContent = error.message;
+      return;
+    }
+
+    await renderManagerView(container, profile);
+  });
+
+  document.getElementById("edit-session-cancel").addEventListener("click", () => {
+    document.getElementById("edit-session-card").hidden = true;
+  });
 }
 
 // One row per driver (never one row per sign-in/out event), showing
@@ -435,12 +536,13 @@ async function renderWeeklyRecordManager() {
   renderWeeklyRecordTable("weekly-record-body", "weekly-record-pagination", rows, true);
 }
 
-function renderManagerHistory(sessions) {
+function renderManagerHistory(sessions, canEditSessions) {
   const bodyEl = document.getElementById("history-body");
   const paginationEl = document.getElementById("history-pagination");
+  const columnCount = canEditSessions ? 7 : 6;
 
   if (sessions.length === 0) {
-    bodyEl.innerHTML = `<tr><td colspan="6">No sessions yet.</td></tr>`;
+    bodyEl.innerHTML = `<tr><td colspan="${columnCount}">No sessions yet.</td></tr>`;
     paginationEl.innerHTML = "";
     return;
   }
@@ -452,6 +554,11 @@ function renderManagerHistory(sessions) {
         const statusCell = s.sign_out_at
           ? dailyStatusBadge(worked)
           : `<span class="status-pill status-warning">In progress</span>`;
+        const actions = canEditSessions
+          ? `<td data-label="Actions" class="actions-cell">
+               <button type="button" class="btn-page" data-edit-session-id="${s.id}">Edit</button>
+             </td>`
+          : "";
         return `<tr>
           <td data-label="Date">${formatDate(s.sign_in_at)}</td>
           <td data-label="Driver">${s.profiles ? s.profiles.full_name : "Unknown"}</td>
@@ -459,8 +566,18 @@ function renderManagerHistory(sessions) {
           <td data-label="Sign Out">${s.sign_out_at ? formatTime(s.sign_out_at) : "Still signed in"}</td>
           <td data-label="Worked">${worked.toFixed(1)} hrs</td>
           <td data-label="Status">${statusCell}</td>
+          ${actions}
         </tr>`;
       })
       .join("");
+
+    if (!canEditSessions) return;
+
+    bodyEl.querySelectorAll("[data-edit-session-id]").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        const session = pageRows.find((s) => s.id === btn.dataset.editSessionId);
+        if (session) openEditSessionForm(session);
+      });
+    });
   });
 }

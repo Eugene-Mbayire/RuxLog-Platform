@@ -62,6 +62,7 @@ function scaffoldHtml() {
             <option value="driver">Driver</option>
             <option value="manager">Manager</option>
             <option value="admin">Admin</option>
+            <option value="house-staff">House Staff</option>
           </select>
         </div>
         <div class="field">
@@ -127,8 +128,13 @@ function userCardHtml(user) {
     ? `<img src="${user.photo_path}" alt="${user.full_name}" class="profile-card-photo" />`
     : `<div class="profile-card-photo-placeholder">${initial}</div>`;
 
-  const ROLE_LABELS = { admin: "Admin", manager: "Manager", driver: "Driver" };
-  const ROLE_PILL_CLASSES = { admin: "status-danger", manager: "status-ok", driver: "status-warning" };
+  const ROLE_LABELS = { admin: "Admin", manager: "Manager", driver: "Driver", "house-staff": "House Staff" };
+  const ROLE_PILL_CLASSES = {
+    admin: "status-danger",
+    manager: "status-ok",
+    driver: "status-warning",
+    "house-staff": "",
+  };
   const roleLabel = ROLE_LABELS[user.role] || user.role;
   const rolePillClass = ROLE_PILL_CLASSES[user.role] || "";
 

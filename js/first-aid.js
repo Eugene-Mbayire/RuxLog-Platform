@@ -35,15 +35,17 @@ document.addEventListener("DOMContentLoaded", async () => {
     }
 
     container.innerHTML = vehicles.map((v) => vehiclePanelHtml(v, canManage)).join("");
+    wirePanelToggles(container);
 
     for (const v of vehicles) {
       if (canManage) {
         wireAddForm(v.id, profile, canManage);
         wireEditForm(v.id, profile, canManage);
+        wireEditConsumptionForm(v.id, profile, canManage);
       }
       wireSearch(v.id, profile, canManage);
       await loadMedicines(v.id, profile, canManage);
-      await loadConsumptionHistory(v.id);
+      await loadConsumptionHistory(v.id, profile, canManage);
     }
   } catch (err) {
     console.error("First aid failed to load:", err);
@@ -56,8 +58,13 @@ function vehiclePanelHtml(vehicle, canManage) {
 
   return `
     <section class="vehicle-panel">
-      <h3 class="vehicle-panel-title">${vehicle.make_model} — ${vehicle.plate_number}</h3>
+      <h3 class="vehicle-panel-title" data-panel-toggle>
+        <span class="vehicle-panel-caret">&#9656;</span>
+        ${vehicleThumbHtml(vehicle)}
+        <span>${vehicle.make_model} — ${vehicle.plate_number}</span>
+      </h3>
 
+      <div class="vehicle-panel-body">
       ${canManage ? addMedicineFormHtml(id) : ""}
       ${canManage ? editMedicineFormHtml(id) : ""}
 
@@ -83,14 +90,19 @@ function vehiclePanelHtml(vehicle, canManage) {
       </div>
       <div id="medicines-pagination-${id}" class="pagination"></div>
 
+      ${canManage ? editConsumptionFormHtml(id) : ""}
+
       <h4 class="section-title">Consumption History</h4>
       <div class="table-responsive">
         <table class="data-table">
-          <thead><tr><th>Date/Time</th><th>Medicine</th><th>Consumed By</th><th>Quantity</th></tr></thead>
+          <thead><tr><th>Date/Time</th><th>Medicine</th><th>Consumed By</th><th>Quantity</th>${
+            canManage ? "<th>Actions</th>" : ""
+          }</tr></thead>
           <tbody id="consumption-body-${id}"></tbody>
         </table>
       </div>
       <div id="consumption-pagination-${id}" class="pagination"></div>
+      </div>
     </section>
   `;
 }
@@ -365,7 +377,7 @@ function wireRowActions(vehicleId, pageRows, profile, canManage) {
       messageEl.textContent = `Consumed ${quantityUsed}. Stock: ${quantityBefore} → ${quantityAfter}.`;
 
       await loadMedicines(vehicleId, profile, canManage);
-      await loadConsumptionHistory(vehicleId);
+      await loadConsumptionHistory(vehicleId, profile, canManage);
     });
   });
 
@@ -399,12 +411,20 @@ function wireRowActions(vehicleId, pageRows, profile, canManage) {
 // RLS on medicine_consumptions ("consumption read": user_id = auth.uid()
 // or is_manager()) automatically scopes this to "my own" for a driver
 // and "everyone's" for a manager/admin — same query, no role branching.
+//
+// Admin only: a past record can be edited or deleted. Editing the
+// quantity moves the medicine's stock by the same difference, while
+// deleting only hides the record and leaves the stock untouched —
+// both handled server-side (see supabase/consumption_admin_edit_delete.sql).
 
-async function loadConsumptionHistory(vehicleId) {
+async function loadConsumptionHistory(vehicleId, profile, canManage) {
+  const columnCount = canManage ? 5 : 4;
+
   const { data, error } = await supabaseClient
     .from("medicine_consumptions")
     .select("*, medicines!inner(name, vehicle_id), profiles(full_name)")
     .eq("medicines.vehicle_id", vehicleId)
+    .is("deleted_at", null)
     .order("consumed_at", { ascending: false });
 
   if (error) throw error;
@@ -413,21 +433,123 @@ async function loadConsumptionHistory(vehicleId) {
   const paginationEl = document.getElementById(`consumption-pagination-${vehicleId}`);
 
   if (!data || data.length === 0) {
-    bodyEl.innerHTML = `<tr><td colspan="4">No consumption recorded yet.</td></tr>`;
+    bodyEl.innerHTML = `<tr><td colspan="${columnCount}">No consumption recorded yet.</td></tr>`;
     paginationEl.innerHTML = "";
     return;
   }
 
   createPaginator(data, paginationEl, (pageRows) => {
     bodyEl.innerHTML = pageRows
-      .map(
-        (c) => `<tr>
+      .map((c) => {
+        const actions = canManage
+          ? `<td data-label="Actions" class="actions-cell">
+               <button type="button" class="btn-page" data-edit-consumption-id="${c.id}">Edit</button>
+               <button type="button" class="btn-delete" data-delete-consumption-id="${c.id}" title="Delete record" aria-label="Delete record">✕</button>
+             </td>`
+          : "";
+        return `<tr>
         <td data-label="Date/Time">${new Date(c.consumed_at).toLocaleString()}</td>
         <td data-label="Medicine">${c.medicines ? c.medicines.name : "Unknown"}</td>
         <td data-label="Consumed By">${c.profiles ? c.profiles.full_name : "Unknown"}</td>
         <td data-label="Quantity">${c.quantity_used}</td>
-      </tr>`
-      )
+        ${actions}
+      </tr>`;
+      })
       .join("");
+
+    if (canManage) wireConsumptionRowActions(vehicleId, pageRows, profile, canManage);
   });
+}
+
+function wireConsumptionRowActions(vehicleId, pageRows, profile, canManage) {
+  const bodyEl = document.getElementById(`consumption-body-${vehicleId}`);
+
+  bodyEl.querySelectorAll("[data-edit-consumption-id]").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const record = pageRows.find((c) => c.id === btn.dataset.editConsumptionId);
+      if (record) openEditConsumptionForm(vehicleId, record);
+    });
+  });
+
+  bodyEl.querySelectorAll("[data-delete-consumption-id]").forEach((btn) => {
+    btn.addEventListener("click", async () => {
+      if (!confirm("Delete this record from the history? The medicine's stock will stay exactly as it is.")) return;
+
+      const { error } = await supabaseClient.rpc("delete_consumption_action", {
+        p_consumption_id: btn.dataset.deleteConsumptionId,
+      });
+
+      if (error) {
+        alert("Could not delete: " + error.message);
+        return;
+      }
+
+      await loadConsumptionHistory(vehicleId, profile, canManage);
+    });
+  });
+}
+
+// ---------- Edit a past consumption record (admin only) ----------
+
+function editConsumptionFormHtml(vehicleId) {
+  return `
+    <div class="form-card" id="edit-consumption-card-${vehicleId}" hidden>
+      <h3>Edit Consumption Record</h3>
+      <form id="edit-consumption-form-${vehicleId}">
+        <input type="hidden" id="edit-consumption-id-${vehicleId}" />
+        <p class="text-muted" id="edit-consumption-medicine-${vehicleId}"></p>
+        <div class="field">
+          <label for="edit-consumption-quantity-${vehicleId}">Quantity Used</label>
+          <input type="number" id="edit-consumption-quantity-${vehicleId}" min="1" step="1" required />
+        </div>
+        <button type="submit" class="btn btn-auto">Save Changes</button>
+        <button type="button" id="edit-consumption-cancel-${vehicleId}" class="btn btn-auto btn-off">Cancel</button>
+        <p class="error-message" id="edit-consumption-message-${vehicleId}"></p>
+      </form>
+    </div>
+  `;
+}
+
+function wireEditConsumptionForm(vehicleId, profile, canManage) {
+  const form = document.getElementById(`edit-consumption-form-${vehicleId}`);
+
+  form.addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const messageEl = document.getElementById(`edit-consumption-message-${vehicleId}`);
+    messageEl.textContent = "";
+
+    const consumptionId = document.getElementById(`edit-consumption-id-${vehicleId}`).value;
+    const quantityUsed = Number(document.getElementById(`edit-consumption-quantity-${vehicleId}`).value);
+
+    // edit_consumption_action() adjusts the medicine's stock by the
+    // difference and updates the record, atomically in one call.
+    const { error } = await supabaseClient.rpc("edit_consumption_action", {
+      p_consumption_id: consumptionId,
+      p_quantity_used: quantityUsed,
+    });
+
+    if (error) {
+      messageEl.textContent = error.message;
+      return;
+    }
+
+    document.getElementById(`edit-consumption-card-${vehicleId}`).hidden = true;
+    await loadMedicines(vehicleId, profile, canManage);
+    await loadConsumptionHistory(vehicleId, profile, canManage);
+  });
+
+  document.getElementById(`edit-consumption-cancel-${vehicleId}`).addEventListener("click", () => {
+    document.getElementById(`edit-consumption-card-${vehicleId}`).hidden = true;
+  });
+}
+
+function openEditConsumptionForm(vehicleId, record) {
+  document.getElementById(`edit-consumption-id-${vehicleId}`).value = record.id;
+  document.getElementById(`edit-consumption-quantity-${vehicleId}`).value = record.quantity_used;
+  document.getElementById(`edit-consumption-medicine-${vehicleId}`).textContent =
+    `${record.medicines ? record.medicines.name : "Medicine"} — consumed ${new Date(record.consumed_at).toLocaleString()}`;
+
+  const card = document.getElementById(`edit-consumption-card-${vehicleId}`);
+  card.hidden = false;
+  card.scrollIntoView({ block: "center" });
 }

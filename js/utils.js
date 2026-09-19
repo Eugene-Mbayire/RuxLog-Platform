@@ -17,6 +17,38 @@ function isManagerOrAdmin(profile) {
   return profile.role === "manager" || profile.role === "admin";
 }
 
+// House staff only ever see the schedule and petty cash (see
+// supabase/house_staff_role.sql) — they're not drivers, so hours,
+// vehicles and the first aid kit don't apply to them at all.
+function isHouseStaff(profile) {
+  return profile.role === "house-staff";
+}
+
+// Car photo shown beside a vehicle's name, same image_path the
+// Vehicles page uses. Vehicles without a photo simply show no image.
+function vehicleThumbHtml(vehicle) {
+  return vehicle.image_path
+    ? `<img src="${vehicle.image_path}" class="vehicle-thumb" alt="${vehicle.make_model}" />`
+    : "";
+}
+
+// Collapsible per-vehicle panels (petty cash, first aid): every panel
+// starts collapsed, and clicking a vehicle's name opens that one while
+// closing the other. An open panel stays open until the user opens a
+// different one or clicks its own name again — clicking anywhere else
+// on the page deliberately leaves it alone, so working inside a panel
+// never closes it out from under you.
+function wirePanelToggles(container) {
+  container.querySelectorAll("[data-panel-toggle]").forEach((titleEl) => {
+    titleEl.addEventListener("click", () => {
+      const panel = titleEl.closest(".vehicle-panel");
+      const alreadyOpen = panel.classList.contains("expanded");
+      container.querySelectorAll(".vehicle-panel.expanded").forEach((el) => el.classList.remove("expanded"));
+      if (!alreadyOpen) panel.classList.add("expanded");
+    });
+  });
+}
+
 function formatRWF(amount) {
   return new Intl.NumberFormat("en-RW", { maximumFractionDigits: 0 }).format(amount || 0) + " RWF";
 }

@@ -16,14 +16,24 @@ function renderNav(profile) {
   const navPlaceholder = document.getElementById("nav-placeholder");
   if (!navPlaceholder) return;
 
-  const links = [
-    { href: "dashboard.html", label: "Dashboard" },
-    { href: "petty-cash.html", label: "Petty Cash" },
-    { href: "working-hours.html", label: isManagerOrAdmin(profile) ? "Worked Hours" : "Check IN/OUT" },
-    { href: "cars.html", label: "Vehicles" },
-    { href: "first-aid.html", label: "First-Aid-Kit" },
-    { href: "schedule.html", label: "Schedule" },
-  ];
+  // House staff aren't drivers — no hours, no vehicles. They do get the
+  // first aid kit (to consume from, not to manage). Their dashboard
+  // carries the day's schedule, so they don't need the Schedule page
+  // (which is the editor) either.
+  const links = isHouseStaff(profile)
+    ? [
+        { href: "dashboard.html", label: "Dashboard" },
+        { href: "petty-cash.html", label: "Petty Cash" },
+        { href: "first-aid.html", label: "First-Aid-Kit" },
+      ]
+    : [
+        { href: "dashboard.html", label: "Dashboard" },
+        { href: "petty-cash.html", label: "Petty Cash" },
+        { href: "working-hours.html", label: isManagerOrAdmin(profile) ? "Worked Hours" : "Check IN/OUT" },
+        { href: "cars.html", label: "Vehicles" },
+        { href: "first-aid.html", label: "First-Aid-Kit" },
+        { href: "schedule.html", label: "Schedule" },
+      ];
 
   // Admin gets every manager link plus Users (moved off manager) and
   // the new Logs page — both admin-only.
