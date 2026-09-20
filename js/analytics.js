@@ -69,7 +69,7 @@ async function loadAnalytics(container) {
 
   container.innerHTML = scaffoldHtml();
 
-  renderOverviewCards(pettyCash || [], driverSessions, consumptions || [], docs || []);
+  renderOverviewCards(docs || []);
   renderPettyCashChart(vehicles || [], pettyCash || []);
   renderHoursChart(drivers || [], driverSessions);
   renderMedicineChart(consumptions || []);
@@ -107,36 +107,16 @@ function scaffoldHtml() {
 
 // ---------- Overview cards ----------
 
-function renderOverviewCards(pettyCash, driverSessions, consumptions, docs) {
-  const totalSpent = pettyCash
-    .filter((t) => t.type === "withdrawal")
-    .reduce((sum, t) => sum + Number(t.amount), 0);
-
-  const now = new Date();
-  const isThisMonth = (dateStr) => {
-    const d = new Date(dateStr);
-    return d.getFullYear() === now.getFullYear() && d.getMonth() === now.getMonth();
-  };
-
-  const hoursThisMonth = driverSessions
-    .filter((s) => isThisMonth(s.sign_in_at))
-    .reduce((sum, s) => sum + sessionHours(s), 0);
-
-  const medsThisMonth = consumptions
-    .filter((c) => isThisMonth(c.consumed_at))
-    .reduce((sum, c) => sum + c.quantity_used, 0);
-
+function renderOverviewCards(docs) {
   const attentionCount = docs.filter((d) => {
     const days = daysUntil(d.expiry_date);
     return days !== null && days <= 30;
   }).length;
 
-  document.getElementById("overview-cards").innerHTML = [
-    card("Total Petty Cash Spent (All-Time)", `<p class="big-value">${formatRWF(totalSpent)}</p>`),
-    card("Hours Logged This Month", `<p class="big-value">${hoursThisMonth.toFixed(1)} hrs</p>`),
-    card("Medicines Consumed This Month", `<p class="big-value">${medsThisMonth}</p>`),
-    card("Vehicle Documents Needing Attention", `<p class="big-value">${attentionCount}</p>`),
-  ].join("");
+  document.getElementById("overview-cards").innerHTML = card(
+    "Vehicle Documents Needing Attention",
+    `<p class="big-value">${attentionCount}</p>`
+  );
 }
 
 // ---------- Shared week-bucketing helper ----------
