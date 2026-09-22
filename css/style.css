@@ -820,9 +820,12 @@ fieldset legend {
 
 /* Same red pill the dashboard uses for a missing supply — kept as a
    pill rather than plain red text so it stays readable on the card's
-   dark background. */
-.schedule-extra-flag {
-  background: #fee2e2;
+   dark background.
+   Selector includes the row and the element on purpose: this span sits
+   inside the value span, so ".schedule-extra-row span:last-child"
+   above matches it too and would otherwise repaint it cyan. */
+.schedule-extra-row span.schedule-extra-flag {
+  background: #fff;
   color: var(--ruxlog-danger);
   border-radius: 999px;
   padding: 2px 10px;

@@ -53,10 +53,12 @@ async function renderDashboardSchedulePreview(containerEl) {
 // hours, and anything missing from the cars.
 
 async function loadScheduleExtras() {
-  const [{ data: balances }, { data: weeklyRecords }, { data: drivers }, { data: missingSupplies }] = await Promise.all([
+  // driver_hours_totals rather than weekly_work_hours: the schedule is
+  // shared with everyone, so the totals have to read the same for every
+  // role (see supabase/driver_hours_totals.sql).
+  const [{ data: balances }, { data: hoursTotals }, { data: missingSupplies }] = await Promise.all([
     supabaseClient.from("petty_cash_balance").select("*"),
-    supabaseClient.from("weekly_work_hours").select("driver_id, worked_hours"),
-    supabaseClient.from("profiles").select("id, full_name").eq("role", "driver"),
+    supabaseClient.from("driver_hours_totals").select("*").order("full_name"),
     supabaseClient
       .from("car_supplies")
       .select("name, vehicles(make_model)")
@@ -68,7 +70,7 @@ async function loadScheduleExtras() {
     extraCard("Petty Cash Balance", balanceLines(balances || [])),
     extraCard(
       "Total Hours Owed / Extra",
-      hoursLines(weeklyRecords || [], drivers || []) +
+      hoursLines(hoursTotals || []) +
         `<p class="schedule-extra-note">Note: Each week starts with drivers owing ${WEEKLY_EXPECTED_HOURS} hours, plus last weeks owed hours or minus last weeks overtime hours. To know if drivers owes you hours or they worked overtime, check the latest Sunday evening schedule.</p>`
     ),
     extraCard("Car Supplies", supplyLines(missingSupplies || [])),
@@ -91,17 +93,12 @@ function balanceLines(balances) {
   return balances.map((b) => extraRow(b.make_model, formatRWF(b.current_balance))).join("");
 }
 
-function hoursLines(weeklyRecords, drivers) {
-  if (drivers.length === 0) return `<p class="schedule-extra-row"><span>No drivers yet.</span></p>`;
+function hoursLines(hoursTotals) {
+  if (hoursTotals.length === 0) return `<p class="schedule-extra-row"><span>No drivers yet.</span></p>`;
 
-  const diffByDriver = {};
-  weeklyRecords.forEach((w) => {
-    diffByDriver[w.driver_id] = (diffByDriver[w.driver_id] || 0) + (Number(w.worked_hours) - WEEKLY_EXPECTED_HOURS);
-  });
-
-  return drivers
+  return hoursTotals
     .map((d) => {
-      const diff = diffByDriver[d.id] || 0;
+      const diff = Number(d.total_diff_hours);
       let label;
       if (Math.abs(diff) < 0.01) label = "All caught up";
       else if (diff < 0) label = `Owes ${Math.abs(diff).toFixed(1)} hrs`;
