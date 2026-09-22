@@ -109,6 +109,7 @@ function vehiclePanelHtml(vehicle, profile) {
         </table>
       </div>
       <div id="history-pagination-${id}" class="pagination"></div>
+      <button type="button" class="btn-page" id="download-transactions-${id}">Download Petty Cash Report(PDF)</button>
       </div>
     </section>
   `;
@@ -188,6 +189,30 @@ function wireVehiclePanel(vehicle, profile) {
   loadPendingRefills(id, profile);
 
   if (profile.role === "admin") wireEditTransactionForm(id, profile);
+
+  document.getElementById(`download-transactions-${id}`).addEventListener("click", () => {
+    const rows = historyCache[id] || [];
+    if (rows.length === 0) {
+      alert("There are no transactions to download yet.");
+      return;
+    }
+
+    // Already newest-first from loadHistory, which is what downloadPdf expects.
+    downloadPdf(
+      `petty-cash-report-${vehicle.make_model.toUpperCase().replace(/\s+/g, "-")}.pdf`,
+      `Petty Cash Transactions — ${vehicle.make_model} (${vehicle.plate_number})`,
+      ["Date", "Name", "Type", "Amount (RWF)", "Status", "Reason"],
+      rows.map((t) => [
+        new Date(t.created_at).toLocaleString(),
+        t.profiles ? t.profiles.full_name : "Unknown",
+        t.type,
+        t.amount,
+        t.status,
+        t.reason || "",
+      ]),
+      1 // one page only
+    );
+  });
 
   document.getElementById(`withdraw-form-${id}`).addEventListener("submit", async (e) => {
     e.preventDefault();
@@ -323,6 +348,10 @@ async function loadBalance(vehicleId) {
   el.textContent = formatRWF(data.current_balance);
 }
 
+// Newest-first rows per vehicle, kept so the PDF button can render
+// exactly what the table is showing without re-querying.
+const historyCache = {};
+
 async function loadHistory(vehicleId, profile) {
   const canManage = profile.role === "admin";
   const columnCount = canManage ? 5 : 4;
@@ -346,6 +375,8 @@ async function loadHistory(vehicleId, profile) {
     bodyEl.innerHTML = `<tr><td colspan="${columnCount}">Could not load history: ${error.message}</td></tr>`;
     return;
   }
+
+  historyCache[vehicleId] = data || [];
 
   if (!data || data.length === 0) {
     bodyEl.innerHTML = `<tr><td colspan="${columnCount}">No transactions yet.</td></tr>`;

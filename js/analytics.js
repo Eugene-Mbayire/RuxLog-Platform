@@ -334,32 +334,5 @@ function downloadChart(chartInstance, filename) {
   link.click();
 }
 
-// PDF report via jsPDF + autotable (both from a CDN, see analytics.html).
-// Rows must already be newest-first — this just renders them and then
-// hard-caps the result at 2 pages, discarding anything that would have
-// flowed further, so the most recent activity is always what's kept.
-function downloadPdf(filename, title, headers, rows) {
-  const { jsPDF } = window.jspdf;
-  const doc = new jsPDF({ orientation: "landscape" });
-
-  doc.setFontSize(14);
-  doc.text(title, 14, 15);
-  doc.setFontSize(9);
-  doc.setTextColor(120);
-  doc.text(`Generated ${new Date().toLocaleString()} — most recent first`, 14, 21);
-
-  doc.autoTable({
-    head: [headers],
-    body: rows,
-    startY: 26,
-    styles: { fontSize: 8 },
-    headStyles: { fillColor: [30, 58, 95] }, // matches --ruxlog-primary
-  });
-
-  const totalPages = doc.internal.getNumberOfPages();
-  for (let page = totalPages; page > 2; page--) {
-    doc.deletePage(page);
-  }
-
-  doc.save(filename);
-}
+// downloadPdf() lives in js/pdf-report.js, shared with the Petty Cash
+// page so both produce an identical looking report.
