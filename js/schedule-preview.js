@@ -71,7 +71,7 @@ async function loadScheduleExtras() {
     extraCard(
       "Total Hours Owed / Extra",
       hoursLines(hoursTotals || []) +
-        `<p class="schedule-extra-note">Note: Each week starts with drivers owing ${WEEKLY_EXPECTED_HOURS} hours, plus last weeks owed hours or minus last weeks overtime hours. To know if drivers owes you hours or they worked overtime, check the latest Sunday evening schedule.</p>`
+        `<p class="schedule-extra-note">Note: Each week starts with drivers owing ${WEEKLY_EXPECTED_HOURS} hours, plus last weeks owed hours or minus last weeks overtime hours. To know the total hours that drivers owes you or the total overtime hours they worked, check the latest Sunday evening schedule.</p>`
     ),
     extraCard("Car Supplies", supplyLines(missingSupplies || [])),
   ].join("");
