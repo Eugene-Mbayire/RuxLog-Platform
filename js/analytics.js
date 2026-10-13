@@ -51,7 +51,7 @@ async function loadAnalytics(container) {
     { data: docs, error: docsError },
   ] = await Promise.all([
     supabaseClient.from("vehicles").select("*").order("make_model"),
-    supabaseClient.from("petty_cash_transactions").select("*").order("created_at"),
+    supabaseClient.from("petty_cash_transactions").select("*, profiles!user_id(full_name)").order("created_at"),
     supabaseClient.from("work_sessions").select("*, profiles(full_name)").order("sign_in_at"),
     supabaseClient.from("profiles").select("id, full_name").eq("role", "driver"),
     supabaseClient.from("medicine_consumptions").select("*, medicines(name), profiles(full_name)").order("consumed_at"),
@@ -266,29 +266,9 @@ function wireDownloads(pettyCash, driverSessions, consumptions, vehicles) {
     .getElementById("download-medicine-chart")
     .addEventListener("click", () => downloadChart(medicineChartInstance, "medicine-consumption.png"));
 
-  const vehicleName = (id) => {
-    const v = vehicles.find((veh) => veh.id === id);
-    return v ? v.make_model : "Unknown";
-  };
-
   document.getElementById("download-petty-cash-pdf").addEventListener("click", () => {
-    downloadPdf(
-      "petty-cash-transactions.pdf",
-      "Petty Cash Transactions",
-      ["Date", "Vehicle", "Type", "Amount (RWF)", "Status", "Reason"],
-      // Newest first, same as the "latest first" rule for every report here.
-      pettyCash
-        .slice()
-        .reverse()
-        .map((t) => [
-          new Date(t.created_at).toLocaleString(),
-          vehicleName(t.vehicle_id),
-          t.type,
-          t.amount,
-          t.status,
-          t.reason || "",
-        ])
-    );
+    const report = pettyCashReport(pettyCash, vehicles);
+    downloadPdf("petty-cash-transactions.pdf", report.title, report.headers, report.rows);
   });
 
   document.getElementById("download-hours-pdf").addEventListener("click", () => {

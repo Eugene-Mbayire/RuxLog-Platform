@@ -41,7 +41,7 @@ async function renderDashboardSchedulePreview(containerEl) {
   });
   document.getElementById("share-whatsapp-btn").addEventListener("click", () => handleShareWhatsApp(dashboardScheduleDate));
 
-  // The three summary cards show the situation as it stands right now,
+  // The summary cards show the situation as it stands right now,
   // not for the day being viewed, so they're loaded once rather than
   // re-fetched every time someone steps to another date.
   await Promise.all([loadDashboardSchedule(), loadScheduleExtras()]);
@@ -49,16 +49,12 @@ async function renderDashboardSchedulePreview(containerEl) {
 
 // ---------- Summary cards printed under the schedule ----------
 // Part of the shared image, so they travel with the schedule to
-// WhatsApp: what's in the petty cash tins, where each driver stands on
-// hours, and anything missing from the cars.
+// WhatsApp: what's in the petty cash tins and anything missing from
+// the cars.
 
 async function loadScheduleExtras() {
-  // driver_hours_totals rather than weekly_work_hours: the schedule is
-  // shared with everyone, so the totals have to read the same for every
-  // role (see supabase/driver_hours_totals.sql).
-  const [{ data: balances }, { data: hoursTotals }, { data: missingSupplies }] = await Promise.all([
+  const [{ data: balances }, { data: missingSupplies }] = await Promise.all([
     supabaseClient.from("petty_cash_balance").select("*"),
-    supabaseClient.from("driver_hours_totals").select("*").order("full_name"),
     supabaseClient
       .from("car_supplies")
       .select("name, vehicles(make_model)")
@@ -68,11 +64,6 @@ async function loadScheduleExtras() {
 
   document.getElementById("preview-extras").innerHTML = [
     extraCard("Petty Cash Balance", balanceLines(balances || [])),
-    extraCard(
-      "Total Hours Owed / Extra",
-      hoursLines(hoursTotals || []) +
-        `<p class="schedule-extra-note">Note: Each week starts with drivers owing ${WEEKLY_EXPECTED_HOURS} hours, plus last weeks owed hours or minus last weeks overtime hours. To know the total hours that drivers owes you or the total overtime hours they worked, check the latest Sunday evening schedule.</p>`
-    ),
     extraCard("Car Supplies", supplyLines(missingSupplies || [])),
   ].join("");
 }
@@ -91,21 +82,6 @@ function extraRow(label, value) {
 function balanceLines(balances) {
   if (balances.length === 0) return `<p class="schedule-extra-row"><span>No petty cash pools yet.</span></p>`;
   return balances.map((b) => extraRow(b.make_model, formatRWF(b.current_balance))).join("");
-}
-
-function hoursLines(hoursTotals) {
-  if (hoursTotals.length === 0) return `<p class="schedule-extra-row"><span>No drivers yet.</span></p>`;
-
-  return hoursTotals
-    .map((d) => {
-      const diff = Number(d.total_diff_hours);
-      let label;
-      if (Math.abs(diff) < 0.01) label = "All caught up";
-      else if (diff < 0) label = `Owes ${Math.abs(diff).toFixed(1)} hrs`;
-      else label = `Extra ${diff.toFixed(1)} hrs`;
-      return extraRow(d.full_name, label);
-    })
-    .join("");
 }
 
 function supplyLines(missingSupplies) {

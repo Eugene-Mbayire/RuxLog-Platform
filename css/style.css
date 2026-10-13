@@ -833,13 +833,6 @@ fieldset legend {
   font-weight: 700;
 }
 
-.schedule-extra-note {
-  margin: 10px 0 0;
-  font-size: 0.72rem;
-  line-height: 1.4;
-  color: rgba(220, 228, 240, 0.7);
-}
-
 .schedule-watermark {
   margin: 24px 0 0;
   text-align: right;

@@ -146,6 +146,79 @@ async function renderDriverDashboard(profile) {
     card("Total Hours Owed / Extra", totalHoursStatusBadge(totalDiff, true)),
     card("Car Supplies", missingSuppliesHtml(missingSupplies)),
   ].join("");
+
+  renderSharePettyCashButton();
+}
+
+// ---------- Share petty cash report (driver dashboard) ----------
+// Same PDF as the Analytics "Petty Cash Transactions (PDF)" download,
+// handed to the device's share sheet the way Share Schedule hands over
+// its image. The data is fetched up front rather than on click, so the
+// share sheet opens straight from the tap — browsers refuse
+// navigator.share() once too much time has passed since the user's tap.
+
+function renderSharePettyCashButton() {
+  const container = document.getElementById("dashboard-share-petty-cash");
+  container.innerHTML = `
+    <button type="button" id="share-petty-cash-btn" class="btn btn-auto btn-whatsapp">Share Petty Cash Transactions</button>
+    <p class="error-message" id="share-petty-cash-message"></p>
+  `;
+
+  const reportData = Promise.all([
+    supabaseClient.from("vehicles").select("*").order("make_model"),
+    supabaseClient.from("petty_cash_transactions").select("*, profiles!user_id(full_name)").order("created_at"),
+  ]).then(([{ data: vehicles, error: vehiclesError }, { data: transactions, error: transactionsError }]) => {
+    if (vehiclesError) throw vehiclesError;
+    if (transactionsError) throw transactionsError;
+    return { vehicles: vehicles || [], transactions: transactions || [] };
+  });
+  reportData.catch(() => {}); // surfaced on click instead
+
+  document.getElementById("share-petty-cash-btn").addEventListener("click", () => handleSharePettyCash(reportData));
+}
+
+async function handleSharePettyCash(reportData) {
+  const btn = document.getElementById("share-petty-cash-btn");
+  const messageEl = document.getElementById("share-petty-cash-message");
+  messageEl.textContent = "";
+  btn.disabled = true;
+
+  try {
+    const { vehicles, transactions } = await reportData;
+    const report = pettyCashReport(transactions, vehicles);
+    if (report.rows.length === 0) {
+      messageEl.textContent = "There are no transactions to share yet.";
+      return;
+    }
+
+    const filename = `petty-cash-transactions-${toDateString(new Date())}.pdf`;
+    const doc = buildPdf(report.title, report.headers, report.rows);
+    const file = new File([doc.output("blob")], filename, { type: "application/pdf" });
+    const caption = `PETTY CASH TRANSACTIONS (${new Date().toLocaleDateString("en-GB", {
+      day: "numeric",
+      month: "short",
+      year: "numeric",
+    })})`;
+
+    if (navigator.canShare && navigator.canShare({ files: [file] })) {
+      try {
+        await navigator.share({ files: [file], text: caption });
+        return;
+      } catch (err) {
+        if (err.name === "AbortError") return; // user cancelled the share sheet
+        console.warn("Native share failed, downloading the PDF instead:", err);
+      }
+    }
+
+    // A file can't be attached through a wa.me link, so browsers without
+    // file sharing (mainly desktop) get the PDF downloaded to send by hand.
+    doc.save(filename);
+  } catch (err) {
+    console.error("Petty cash share failed:", err);
+    messageEl.textContent = "Could not prepare the report: " + err.message;
+  } finally {
+    btn.disabled = false;
+  }
 }
 
 // ---------- Car supplies (shown on every role's dashboard) ----------

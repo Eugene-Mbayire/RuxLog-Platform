@@ -1,10 +1,11 @@
 // ==========================================================
 // RuxLog Platform — PDF reports
 //
-// Shared by Analytics and Petty Cash, so both produce an identical
-// looking report. Built with jsPDF + autotable, loaded from a CDN on
-// any page that includes this file — generating a real PDF in the
-// browser isn't something plain JS can do on its own.
+// Shared by Analytics, Petty Cash and the driver dashboard, so they
+// all produce an identical looking report. Built with jsPDF +
+// autotable, loaded from a CDN on any page that includes this file —
+// generating a real PDF in the browser isn't something plain JS can
+// do on its own.
 //
 // Rows must already be newest-first: this renders them and then
 // hard-caps the result at maxPages, dropping anything that would have
@@ -12,7 +13,7 @@
 // Analytics uses the 2-page default; the Petty Cash report asks for 1.
 // ==========================================================
 
-function downloadPdf(filename, title, headers, rows, maxPages = 2) {
+function buildPdf(title, headers, rows, maxPages = 2) {
   const { jsPDF } = window.jspdf;
   const doc = new jsPDF({ orientation: "landscape" });
 
@@ -53,5 +54,59 @@ function downloadPdf(filename, title, headers, rows, maxPages = 2) {
     doc.deletePage(page);
   }
 
-  doc.save(filename);
+  return doc;
+}
+
+function downloadPdf(filename, title, headers, rows, maxPages = 2) {
+  buildPdf(title, headers, rows, maxPages).save(filename);
+}
+
+// ---------- Petty cash transactions report ----------
+// One report for every vehicle's pool, used by the Analytics download
+// and the driver dashboard's share button so both hand out the same
+// document.
+//
+// Balance is the vehicle's pool balance right after that row, following
+// the same rules as the petty_cash_balance view: a withdrawal always
+// comes out, a refill only counts once it's approved, and a
+// soft-deleted row still counts even though it's left out of the list.
+//
+// transactions must embed profiles!user_id(full_name).
+function pettyCashReport(transactions, vehicles) {
+  const vehicleName = (id) => {
+    const v = vehicles.find((veh) => veh.id === id);
+    return v ? v.make_model : "Unknown";
+  };
+
+  const oldestFirst = transactions
+    .slice()
+    .sort((a, b) => new Date(a.created_at) - new Date(b.created_at));
+
+  const balances = {};
+  const rows = [];
+  oldestFirst.forEach((t) => {
+    const amount = Number(t.amount);
+    let balance = balances[t.vehicle_id] || 0;
+    if (t.type === "withdrawal") balance -= amount;
+    else if (t.status === "approved") balance += amount;
+    balances[t.vehicle_id] = balance;
+
+    if (t.deleted_at) return;
+
+    rows.push([
+      new Date(t.created_at).toLocaleString(),
+      vehicleName(t.vehicle_id),
+      t.type === "refill" && t.status !== "approved" ? "refill (pending)" : t.type,
+      amount,
+      t.profiles ? t.profiles.full_name : "Unknown",
+      t.reason || "",
+      balance,
+    ]);
+  });
+
+  return {
+    title: "Petty Cash Transactions",
+    headers: ["Date", "Vehicle", "Type", "Amount (RWF)", "Name", "Reason", "Balance (RWF)"],
+    rows: rows.reverse(),
+  };
 }
