@@ -267,8 +267,7 @@ function wireDownloads(pettyCash, driverSessions, consumptions, vehicles) {
     .addEventListener("click", () => downloadChart(medicineChartInstance, "medicine-consumption.png"));
 
   document.getElementById("download-petty-cash-pdf").addEventListener("click", () => {
-    const report = pettyCashReport(pettyCash, vehicles);
-    downloadPdf("petty-cash-transactions.pdf", report.title, report.headers, report.rows);
+    buildPettyCashPdf(pettyCashReport(pettyCash, vehicles)).save("petty-cash-transactions.pdf");
   });
 
   document.getElementById("download-hours-pdf").addEventListener("click", () => {

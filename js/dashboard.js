@@ -186,13 +186,13 @@ async function handleSharePettyCash(reportData) {
   try {
     const { vehicles, transactions } = await reportData;
     const report = pettyCashReport(transactions, vehicles);
-    if (report.rows.length === 0) {
+    if (!hasPettyCashRows(report)) {
       messageEl.textContent = "There are no transactions to share yet.";
       return;
     }
 
     const filename = `petty-cash-transactions-${toDateString(new Date())}.pdf`;
-    const doc = buildPdf(report.title, report.headers, report.rows);
+    const doc = buildPettyCashPdf(report);
     const file = new File([doc.output("blob")], filename, { type: "application/pdf" });
     const caption = `PETTY CASH TRANSACTIONS (${new Date().toLocaleDateString("en-GB", {
       day: "numeric",
