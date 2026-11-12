@@ -104,10 +104,15 @@ function changeDashboardScheduleDate(deltaDays) {
 }
 
 async function loadDashboardSchedule() {
+  // Create the day's rows for any repeating tasks (see schedule_recurring.sql).
+  const { error: ensureError } = await supabaseClient.rpc("ensure_recurring_entries", { p_date: dashboardScheduleDate });
+  if (ensureError) console.warn("Could not add repeating tasks:", ensureError);
+
   const { data, error } = await supabaseClient
     .from("schedule_entries")
     .select("*")
     .eq("schedule_date", dashboardScheduleDate)
+    .eq("skipped", false)
     .order("entry_time", { ascending: true });
 
   const titleEl = document.getElementById("dashboard-schedule-title");
