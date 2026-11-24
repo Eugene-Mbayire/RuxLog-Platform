@@ -41,31 +41,24 @@ async function renderDashboardSchedulePreview(containerEl) {
   });
   document.getElementById("share-whatsapp-btn").addEventListener("click", () => handleShareWhatsApp(dashboardScheduleDate));
 
-  // The summary cards show the situation as it stands right now,
-  // not for the day being viewed, so they're loaded once rather than
+  // The summary card shows the situation as it stands right now,
+  // not for the day being viewed, so it's loaded once rather than
   // re-fetched every time someone steps to another date.
   await Promise.all([loadDashboardSchedule(), loadScheduleExtras()]);
 }
 
-// ---------- Summary cards printed under the schedule ----------
-// Part of the shared image, so they travel with the schedule to
-// WhatsApp: what's in the petty cash tins and anything missing from
-// the cars.
+// ---------- Summary card printed under the schedule ----------
+// Part of the shared image, so it travels with the schedule to
+// WhatsApp: anything missing from the cars.
 
 async function loadScheduleExtras() {
-  const [{ data: balances }, { data: missingSupplies }] = await Promise.all([
-    supabaseClient.from("petty_cash_balance").select("*"),
-    supabaseClient
-      .from("car_supplies")
-      .select("name, vehicles(make_model)")
-      .eq("is_available", false)
-      .order("created_at"),
-  ]);
+  const { data: missingSupplies } = await supabaseClient
+    .from("car_supplies")
+    .select("name, vehicles(make_model)")
+    .eq("is_available", false)
+    .order("created_at");
 
-  document.getElementById("preview-extras").innerHTML = [
-    extraCard("Petty Cash Balance", balanceLines(balances || [])),
-    extraCard("Car Supplies", supplyLines(missingSupplies || [])),
-  ].join("");
+  document.getElementById("preview-extras").innerHTML = extraCard("Car Supplies", supplyLines(missingSupplies || []));
 }
 
 function extraCard(title, innerHtml) {
@@ -77,11 +70,6 @@ function extraCard(title, innerHtml) {
 
 function extraRow(label, value) {
   return `<p class="schedule-extra-row"><span>${label}</span><span>${value}</span></p>`;
-}
-
-function balanceLines(balances) {
-  if (balances.length === 0) return `<p class="schedule-extra-row"><span>No petty cash pools yet.</span></p>`;
-  return balances.map((b) => extraRow(b.make_model, formatRWF(b.current_balance))).join("");
 }
 
 function supplyLines(missingSupplies) {
